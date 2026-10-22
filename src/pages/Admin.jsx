@@ -7,7 +7,6 @@ import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPage
 // ---------- Innlogging ----------
 function Login() {
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
   const [step, setStep] = useState('email');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -23,14 +22,6 @@ function Login() {
     if (err) setError(err.message); else setStep('code');
   };
 
-  const verify = async (e) => {
-    e.preventDefault();
-    setBusy(true); setError('');
-    const { error: err } = await supabase.auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
-    setBusy(false);
-    if (err) setError('Feil eller utløpt kode. Be om en ny.');
-  };
-
   return (
     <main className="page narrow">
       <a href="#/" className="back-link"><Icon name="back" size={20} strokeWidth={2} /> Til appen</a>
@@ -42,12 +33,11 @@ function Login() {
           <button className="btn btn-primary btn-lg" disabled={busy}>{busy ? 'Sender …' : 'Send innloggingskode'}</button>
         </form>
       ) : (
-        <form className="stack gap12" onSubmit={verify}>
-          <p className="body-text">Vi har sendt en e-post til {email}. Skriv inn koden, eller trykk på lenken i e-posten.</p>
-          <label className="field">Kode<input inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value)} /></label>
-          <button className="btn btn-primary btn-lg" disabled={busy}>{busy ? 'Sjekker …' : 'Logg inn'}</button>
-          <button type="button" className="btn btn-ghost" onClick={() => setStep('email')}>Bruk en annen e-post</button>
-        </form>
+        <div className="stack gap12">
+          <p className="body-text">Vi har sendt en e-post til {email}. Åpne den og trykk «Sign in», så kommer du rett inn på adminsiden.</p>
+          <p className="small muted">Kommer ikke e-posten? Sjekk søppelpost, eller vent et minutt og prøv igjen.</p>
+          <button type="button" className="btn btn-ghost" onClick={() => setStep('email')}>Prøv igjen eller bruk en annen e-post</button>
+        </div>
       )}
       {error && <p className="error small">{error}</p>}
     </main>

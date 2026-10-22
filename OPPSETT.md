@@ -28,9 +28,9 @@ Du gjør steg 1–4 én gang. Regn med ca. 45 minutter. Ingen programmering tren
 1. **Authentication → URL Configuration**
    - Site URL: `https://app.alvoeninnegolf.no`
    - Redirect URLs: legg til `https://app.alvoeninnegolf.no/**`
-2. **Authentication → Emails → Templates**. Gjør dette i både **Magic Link** og **Confirm signup**:
-   - Legg til en linje i e-posten: `Koden din: {{ .Token }}`
-   - Da får dere en kode i e-posten som kan skrives inn i appen. Det er tryggest på iPhone, der lenker åpnes i Safari i stedet for i appen.
+2. Supabase sender innloggings-e-post bare til medlemmer av organisasjonen. Inviter Erik:
+   **Organization settings → Team → Invite** med hans e-post. Han må godta invitasjonen.
+3. Innlogging på adminsiden skjer med lenken i e-posten («Sign in»). Den åpnes i nettleseren, og det holder.
 
 ## 3. Push-funksjonen
 
