@@ -1,5 +1,5 @@
 // Alvøen Innegolf – service worker: push-varsler og enkel offline-støtte for app-skallet.
-const CACHE = 'alvoen-v2';
+const CACHE = 'alvoen-v3';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (event) => {
@@ -15,11 +15,15 @@ self.addEventListener('activate', (event) => {
 });
 
 // Nettverk først for sider, cache som reserve når man er offline.
+// Sider og version.json hentes forbi nettleserens mellomlager, slik at nye versjoner kommer med en gang.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
+  if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (url.pathname === '/version.json') return; // alltid rett fra nettet
+  const fresh = req.mode === 'navigate' || url.pathname === '/' || url.pathname.endsWith('.html');
   event.respondWith(
-    fetch(req)
+    (fresh ? fetch(req.url, { cache: 'no-store', credentials: 'same-origin' }) : fetch(req))
       .then((res) => {
         if (res.ok) {
           const copy = res.clone();
