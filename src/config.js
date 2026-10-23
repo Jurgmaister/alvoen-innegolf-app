@@ -8,7 +8,6 @@ export const BOOKING_URL = import.meta.env.VITE_BOOKING_URL || 'https://albaplay
 export const CATEGORIES = [
   { id: 'turnering', label: 'Turnering' },
   { id: 'drift', label: 'Drift' },
-  { id: 'tilbud', label: 'Tilbud' },
 ];
 
 export const categoryLabel = (id) => CATEGORIES.find((c) => c.id === id)?.label || id;

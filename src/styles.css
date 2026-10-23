@@ -157,7 +157,6 @@ h1, h2, p { margin: 0; }
 .tag { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 10px; }
 .tag-turnering { background: var(--green-soft); color: #3E6347; }
 .tag-drift { background: #E3E9ED; color: var(--navy); }
-.tag-tilbud { background: #F3EAD8; color: #6E5320; }
 
 /* Turnering */
 .standing { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-bottom: 1px solid var(--line); }
