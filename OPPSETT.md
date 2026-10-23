@@ -99,6 +99,8 @@ Koden ligger i GitHub-prosjektet `Jurgmaister/alvoen-innegolf-app`. Hver gang ko
 3. **Baneverdier**: kontroller par, CR og slope per runde. Runde 3, 5, 7 og 9 mangler og må fylles inn.
 4. **Registrer score**: velg runde, skriv brutto slag og trykk Lagre. Plass, poeng og Order of Merit oppdateres i turneringsfanen med en gang.
 
+5. **Handicapkontroll**: kjør også `supabase/handicapkontroll.sql`. Under Resultater → Handicapkontroll velger du spiller og runde, skriver handicapet fra scorekortet i Trackman og logger kontrollen. Golfbox-sjekk registreres på spilleren.
+
 Beregningen følger regnearket «Vinterserie_2026-27_resultater_v4» (se `src/scoring.js`).
 
 ## Statistikk

@@ -4,6 +4,7 @@ import { supabase } from '../supabase.js';
 import { ROUNDS, currentRound, formatRange } from '../rounds.js';
 import { hcpIndexUsed, computeRound } from '../scoring.js';
 import { useResults, isNine, fmtIndex, fmtSigned } from '../results.js';
+import HcpCheck, { useChecks } from './HcpCheck.jsx';
 
 const num = (v) => {
   const s = String(v ?? '').trim().replace(',', '.');
@@ -14,6 +15,7 @@ const num = (v) => {
 
 // ---------- Registrer score ----------
 function ScoreEntry({ data, reload }) {
+  const { checks } = useChecks();
   const defaultRound = (currentRound() || ROUNDS[ROUNDS.length - 1]).n;
   const [roundNo, setRoundNo] = useState(defaultRound);
   const round = ROUNDS.find((r) => r.n === roundNo);
@@ -105,6 +107,7 @@ function ScoreEntry({ data, reload }) {
                   {r && r.valid && <span className="small strong">{r.place}. plass{r.ties > 1 ? ' (delt)' : ''} · {r.points} p</span>}
                   {r && !r.valid && r.check !== 'OK' && <span className="small error">{r.check}</span>}
                   {r && d.struck && <span className="small muted">Strøket – teller ikke</span>}
+                  {(() => { const k = checks.find((c) => c.player_id === p.id && c.round_no === roundNo); return k && !k.ok ? <span className="tag tag-bad">Feil handicap i Trackman (kontroll {k.checked_on.split('-').reverse().join('.')})</span> : null; })()}
                 </div>
                 <div className="stack gap6 center">
                   <input className="input gross" inputMode="numeric" aria-label={`Brutto ${p.name}`} placeholder="Brutto"
@@ -130,10 +133,12 @@ function ScoreEntry({ data, reload }) {
 // ---------- Spillere ----------
 const EMPTY = { name: '', trackman_name: '', gender: 'H', golfbox_hcp: '', index_no_golfbox: '', contact: '', note: '' };
 
-function PlayerForm({ initial, onSave, onCancel, onDelete, isNew }) {
+function PlayerForm({ initial, onSave, onCancel, onDelete, isNew, hasVerifyCols }) {
   const [f, setF] = useState({
     ...EMPTY, ...initial,
     golfbox_hcp: initial?.golfbox_hcp ?? '', index_no_golfbox: initial?.index_no_golfbox ?? '',
+    golfbox_verified: initial?.golfbox_verified ?? false,
+    golfbox_checked_on: initial?.golfbox_checked_on ?? new Date().toISOString().slice(0, 10),
   });
   const [unlock, setUnlock] = useState(false);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -145,6 +150,7 @@ function PlayerForm({ initial, onSave, onCancel, onDelete, isNew }) {
     e.preventDefault();
     if (Number.isNaN(gb) || Number.isNaN(ng)) return;
     const values = { name: f.name.trim(), trackman_name: f.trackman_name.trim(), gender: f.gender, contact: f.contact.trim(), note: f.note.trim() };
+    if (hasVerifyCols) Object.assign(values, { golfbox_verified: f.golfbox_verified, golfbox_checked_on: f.golfbox_checked_on || null });
     if (!hcpLocked) Object.assign(values, { golfbox_hcp: gb, index_no_golfbox: gb === null ? ng : null, hcp_index: preview });
     onSave(values);
   };
@@ -177,6 +183,12 @@ function PlayerForm({ initial, onSave, onCancel, onDelete, isNew }) {
           <p className="small">{preview !== null ? <>HCP-indeks brukt (50 %): <strong>{fmtIndex(preview)}</strong>{!isNew && ' – endrer resultatene for alle runder spilleren har spilt'}</> : <span className="muted">Skriv Golfbox-indeks (eller indeks uten Golfbox).</span>}</p>
         </>
       )}
+      {hasVerifyCols && (
+        <div className="stack gap6">
+          <label className="tiny-check big-check"><input type="checkbox" checked={f.golfbox_verified} onChange={(e) => setF({ ...f, golfbox_verified: e.target.checked })} /> Jeg har sett handicapet i Golfbox (app eller skjermbilde)</label>
+          <label className="field small-field">Dato sjekket i Golfbox<input type="date" value={f.golfbox_checked_on || ''} onChange={set('golfbox_checked_on')} /></label>
+        </div>
+      )}
       <label className="field">Telefon / e-post (kun synlig for admin)<input value={f.contact} onChange={set('contact')} /></label>
       <label className="field">Merknad (kun synlig for admin)<input value={f.note} onChange={set('note')} /></label>
       <div className="row gap8 wrap">
@@ -188,7 +200,21 @@ function PlayerForm({ initial, onSave, onCancel, onDelete, isNew }) {
   );
 }
 
+function PlayerChips({ p, checks }) {
+  const last = checks[0];
+  const bad = checks.filter((k) => !k.ok).length;
+  return (
+    <span className="row wrap gap6">
+      {p.golfbox_verified ? <span className="tag tag-turnering">Golfbox sjekket{p.golfbox_checked_on ? ` ${p.golfbox_checked_on.split('-').reverse().join('.')}` : ''}</span> : <span className="tag tag-warn">Golfbox ikke sjekket</span>}
+      {last ? (last.ok ? <span className="tag tag-drift">Siste kontroll riktig</span> : <span className="tag tag-bad">Siste kontroll feil</span>) : <span className="tag tag-none">Ikke kontrollert</span>}
+      {bad > 0 && <span className="tag tag-bad">{bad} avvik</span>}
+    </span>
+  );
+}
+
 function Players({ data, reload }) {
+  const { checks, error: checksError } = useChecks();
+  const hasVerifyCols = data.players.length === 0 ? !checksError : 'golfbox_verified' in data.players[0];
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState('');
@@ -220,13 +246,14 @@ function Players({ data, reload }) {
         <div className="card list">
           {data.players.map((p) => (editing === p.id ? (
             <div key={p.id} className="list-item">
-              <PlayerForm initial={p} onSave={(v) => update(p.id, v)} onCancel={() => setEditing(null)} onDelete={() => remove(p)} />
+              <PlayerForm hasVerifyCols={hasVerifyCols} initial={p} onSave={(v) => update(p.id, v)} onCancel={() => setEditing(null)} onDelete={() => remove(p)} />
             </div>
           ) : (
             <button key={p.id} className="list-item row between center gap8 plain-btn" onClick={() => setEditing(p.id)}>
               <span className="stack gap2 grow">
                 <strong className="t15">{p.name}</strong>
                 <span className="small muted">{p.gender === 'D' ? 'Dame' : 'Herre'} · indeks {fmtIndex(p.hcp_index)}{p.trackman_name ? ` · Trackman: ${p.trackman_name}` : ''} · {played(p.id)} runder</span>
+                {hasVerifyCols && <PlayerChips p={p} checks={checks.filter((k) => k.player_id === p.id)} />}
               </span>
               <Icon name="chevron" size={18} color="#5B6B75" />
             </button>
@@ -234,7 +261,7 @@ function Players({ data, reload }) {
         </div>
       )}
       {adding
-        ? <div className="card"><PlayerForm isNew onSave={add} onCancel={() => setAdding(false)} /></div>
+        ? <div className="card"><PlayerForm hasVerifyCols={hasVerifyCols} isNew onSave={add} onCancel={() => setAdding(false)} /></div>
         : <button className="btn btn-ghost" onClick={() => setAdding(true)}><Icon name="plus" size={18} /> Legg til spiller</button>}
       {msg && <p className="error small">{msg}</p>}
     </div>
@@ -320,12 +347,13 @@ export default function ResultsAdmin() {
   return (
     <div className="stack gap14">
       <div className="row gap8 wrap" role="group" aria-label="Resultater">
-        {[['score', 'Registrer score'], ['spillere', 'Spillere'], ['bane', 'Baneverdier']].map(([id, label]) => (
+        {[['score', 'Registrer score'], ['spillere', 'Spillere'], ['kontroll', 'Handicapkontroll'], ['bane', 'Baneverdier']].map(([id, label]) => (
           <button key={id} className={sub === id ? 'chip chip-on' : 'chip'} aria-pressed={sub === id} onClick={() => setSub(id)}>{label}</button>
         ))}
       </div>
       {sub === 'score' && <ScoreEntry data={data} reload={reload} />}
       {sub === 'spillere' && <Players data={data} reload={reload} />}
+      {sub === 'kontroll' && <HcpCheck data={data} />}
       {sub === 'bane' && <Ratings data={data} reload={reload} />}
     </div>
   );

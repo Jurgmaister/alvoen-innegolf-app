@@ -306,3 +306,19 @@ button.round {
 .bracket .card { padding: 12px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .oom-row { border-bottom: 0; padding: 11px 0; }
+
+/* Handicapkontroll */
+.rules-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.rule-chip { font-size: 12.5px; border: 1px solid var(--line); background: var(--card); border-radius: 8px; padding: 4px 10px; }
+.rule-chip b { color: var(--navy); }
+.course-box { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; margin: 0; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.course-box legend { font-size: 12px; font-weight: 600; color: var(--navy); padding: 0 6px; letter-spacing: 0.04em; }
+.check-result { background: var(--green-soft); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 6px; min-height: 120px; justify-content: center; }
+.check-result.bad { background: #F7E4DC; }
+.big-num { font-size: 44px; font-weight: 600; line-height: 1.05; color: var(--navy); font-variant-numeric: tabular-nums; }
+.formula { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.verdict-ok { color: #2F6B3F; font-size: 20px; }
+.verdict-bad { color: #9A3412; font-size: 20px; }
+.tag-bad { background: #F7E4DC; color: #9A3412; }
+.tag-none { background: var(--ground); color: var(--muted); border: 1px solid var(--line); }
+.big-check { font-size: 14px; color: var(--ink); }
