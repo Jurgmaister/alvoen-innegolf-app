@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
+import KioskAdmin from './KioskAdmin.jsx';
 import { supabase, callPush } from '../supabase.js';
 import { CATEGORIES, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPages, formatWhen } from '../data.js';
@@ -383,12 +384,7 @@ export default function Admin() {
       {tab === 'turnering' && <TournamentAdmin />}
       {tab === 'pameldte' && <Signups />}
       {tab === 'info' && <InfoAdmin />}
-      {tab === 'kiosk' && (
-        <div className="card stack gap8">
-          <strong className="t16">Kommer i neste versjon</strong>
-          <p className="body-text">Varelageret kobles til Vipps-salget når API-tilgangen er avklart med Vipps.</p>
-        </div>
-      )}
+      {tab === 'kiosk' && <KioskAdmin />}
 
       <footer className="footer row between center">
         <span className="small muted">Innlogget som {session.user.email}</span>

@@ -1,6 +1,6 @@
 # Oppsett av Alvøen Innegolf-appen
 
-Første utgave: forside med booking, meldinger med push-varsler, turneringsside med påmelding, infosider og en adminside for Jørgen og Erik. Kiosk/varelager kommer i neste versjon.
+Første utgave: forside med booking, meldinger med push-varsler, turneringsside med påmelding, infosider og en adminside for Jørgen og Erik. Kiosken har manuell varebeholdning; kobling til Vipps kommer senere.
 
 Du gjør steg 1–4 én gang. Regn med ca. 45 minutter. Ingen programmering trengs.
 
@@ -85,12 +85,19 @@ Koden ligger i GitHub-prosjektet `Jurgmaister/alvoen-innegolf-app`. Hver gang ko
 
 ---
 
+## Kiosk (varebeholdning)
+
+1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/kiosk.sql` og trykk **Run**.
+2. På adminsiden: fanen **Kiosk** → **Legg til vare**. Fyll inn antall på lager, minimum og hvor mye dere fyller opp til.
+3. Trykk **−** når noe er tatt ut, og **+** ved påfylling. Trykk på en vare for å endre den.
+4. Varer under minimum havner på handlelisten, som kan deles med **Del handleliste**.
+
 ## Daglig bruk (admin)
 
 - **Send melding**: velg kategori (Turnering, Drift, Tilbud), skriv tittel og tekst og send. Kundene som har valgt kategorien får push. Alle ser meldingen i appen.
 - **Turnering**: oppdater neste runde og Order of Merit etter hver runde (fra regnearket deres).
 - **Påmeldte**: se alle påmeldte med låst indeks, last ned til Excel.
-- **Infosider**: endre «Slik bruker du simulatoren» og «Adgang, kiosk og regler».
+- **Kiosk**: tell varer, se hva som er under minimum og del handlelisten.
 
 Ny administrator: legg e-posten inn i tabellen `admins` i Supabase (**Table Editor → admins → Insert row**).
 

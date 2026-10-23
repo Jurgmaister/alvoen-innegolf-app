@@ -206,3 +206,21 @@ input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visib
 @media (min-width: 600px) {
   .tabbar { left: 50%; right: auto; width: 560px; transform: translateX(-50%); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
 }
+
+/* Kiosk */
+.grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.kiosk-alert { border-radius: 16px; padding: 14px 16px; background: var(--green-soft); color: var(--green); }
+.kiosk-alert-low { background: #F6E2D6; color: #8A3412; }
+.kiosk-name {
+  display: flex; flex-direction: column; gap: 6px; text-align: left; background: none; border: 0;
+  padding: 0; color: var(--ink); cursor: pointer; min-height: 44px; font: inherit;
+}
+.bar { display: block; height: 6px; border-radius: 3px; background: #ECEBE3; overflow: hidden; }
+.bar-fill { display: block; height: 100%; background: var(--green); }
+.bar-low { background: var(--alert); }
+.step-btn {
+  width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); background: var(--card);
+  font-size: 22px; font-weight: 600; color: var(--ink); cursor: pointer;
+}
+.step-plus { background: var(--green); border-color: var(--green); color: #FFFFFF; }
+.step-btn:disabled { opacity: 0.45; cursor: default; }
