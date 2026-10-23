@@ -233,3 +233,14 @@ input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visib
 }
 .step-plus { background: var(--green); border-color: var(--green); color: #FFFFFF; }
 .step-btn:disabled { opacity: 0.45; cursor: default; }
+
+/* Runder */
+.round { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.round:last-child { border-bottom: 0; }
+.round-n {
+  width: 36px; height: 28px; border-radius: 14px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600; background: var(--ground); color: var(--navy);
+}
+.round-now .round-n { background: var(--navy); color: #FFFFFF; }
+.round-done .t15 { color: var(--muted); }
+.round-final { background: var(--sage); }

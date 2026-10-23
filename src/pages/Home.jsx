@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { FINAL, currentRound, formatRange, formatDate } from '../rounds.js';
 import Topbar from '../components/Topbar.jsx';
 import Icon from '../components/Icon.jsx';
 import { BOOKING_URL, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
@@ -54,6 +55,7 @@ export default function Home() {
   const seen = lastSeenMessageId();
   const hasUnread = (messages.data || []).some((m) => m.id > seen);
   const t = tournament.data;
+  const cur = currentRound();
 
   return (
     <main className="page">
@@ -81,8 +83,8 @@ export default function Home() {
           <a href="#/turnering" className="card card-link">
             <div className="date-chip"><Icon name="trophy" color="#284659" /></div>
             <div className="grow stack gap3">
-              <strong className="t16">{t.title} – {t.next_round_title}</strong>
-              <span className="small muted">{[t.next_round_course, t.next_round_dates].filter(Boolean).join(' · ') || 'Order of Merit'}</span>
+              <strong className="t16">{cur ? `Runde ${cur.n} · ${cur.course}` : FINAL.title}</strong>
+              <span className="small muted">{t.title} · {cur ? formatRange(cur) : formatDate(FINAL.date)}</span>
             </div>
             <Icon name="chevron" color="#5B6B75" size={20} strokeWidth={2} />
           </a>

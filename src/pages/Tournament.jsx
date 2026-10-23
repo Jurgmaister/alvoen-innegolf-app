@@ -1,6 +1,7 @@
 import { Fragment } from 'react';
 import Icon from '../components/Icon.jsx';
 import { TOURNAMENT_SIGNUP_URL } from '../config.js';
+import { ROUNDS, FINAL, roundStatus, currentRound, formatRange, formatDate } from '../rounds.js';
 import Topbar from '../components/Topbar.jsx';
 import { useQuery, fetchTournament, fetchStandings } from '../data.js';
 
@@ -22,6 +23,7 @@ export default function Tournament() {
   const t = useQuery(fetchTournament, []);
   const s = useQuery(fetchStandings, []);
   const tour = t.data;
+  const cur = currentRound();
 
   if (t.loading) return <main className="page"><Topbar /><p className="muted">Henter turnering …</p></main>;
   if (t.error || !tour) return <main className="page"><Topbar /><p className="error">Kunne ikke hente turneringen.</p></main>;
@@ -37,12 +39,39 @@ export default function Tournament() {
       {tour.summary && <p className="body-text">{tour.summary}</p>}
 
       <section className="hero stack gap12">
-        <span className="label label-light">NESTE RUNDE</span>
+        <span className="label label-light">{cur ? (roundStatus(cur) === 'pagar' ? 'PÅGÅR NÅ' : 'NESTE RUNDE') : 'SLUTTSPILL'}</span>
         <div className="stack gap4">
-          <strong className="t18">{[tour.next_round_title, tour.next_round_course].filter(Boolean).join(' · ')}</strong>
-          {tour.next_round_dates && <span className="hero-text small">{tour.next_round_dates}</span>}
+          <strong className="t18">{cur ? `Runde ${cur.n} · ${cur.course}` : FINAL.title}</strong>
+          <span className="hero-text small">{cur ? formatRange(cur) : formatDate(FINAL.date)}</span>
         </div>
         <Signup open={tour.signup_open} />
+      </section>
+
+      <section className="stack gap10">
+        <h2 className="label">RUNDER</h2>
+        <div className="card list">
+          {ROUNDS.map((r) => {
+            const st = roundStatus(r);
+            return (
+              <div key={r.n} className={st === 'ferdig' ? 'round round-done' : st === 'pagar' ? 'round round-now' : 'round'}>
+                <span className="round-n">R{r.n}</span>
+                <div className="grow stack gap2">
+                  <span className="t15 medium">{r.course}</span>
+                  <span className="small muted">{formatRange(r)}</span>
+                </div>
+                {st === 'pagar' && <span className="tag tag-turnering">Pågår</span>}
+                {st === 'ferdig' && <span className="small muted">Ferdig</span>}
+              </div>
+            );
+          })}
+          <div className="round">
+            <span className="round-n round-final" aria-hidden="true"><Icon name="trophy" size={16} strokeWidth={2} /></span>
+            <div className="grow stack gap2">
+              <span className="t15 medium">{FINAL.title}</span>
+              <span className="small muted">{formatDate(FINAL.date)}</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="stack gap10">

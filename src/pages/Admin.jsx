@@ -146,9 +146,6 @@ function SendMessage() {
 const TOUR_FIELDS = [
   ['title', 'Navn på turneringen'],
   ['summary', 'Kort beskrivelse', 'textarea'],
-  ['next_round_title', 'Neste runde (f.eks. «Runde 3»)'],
-  ['next_round_course', 'Bane'],
-  ['next_round_dates', 'Når den spilles (f.eks. «1.–14. november»)'],
   ['standings_after', 'Tabelltekst (f.eks. «Etter runde 2»)'],
   ['rules', 'Regler', 'textarea'],
 ];
