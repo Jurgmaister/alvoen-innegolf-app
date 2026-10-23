@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Topbar from '../components/Topbar.jsx';
 import Icon from '../components/Icon.jsx';
 import { BOOKING_URL, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchInfoPages, lastSeenMessageId, formatWhen } from '../data.js';
@@ -56,13 +57,12 @@ export default function Home() {
 
   return (
     <main className="page">
-      <header className="row between center">
-        <div className="wordmark">ALVØEN INNEGOLF</div>
+      <Topbar>
         <a href="#/meldinger" className="icon-btn" aria-label={hasUnread ? 'Meldinger, nye' : 'Meldinger'}>
           <Icon name="bell" />
           {hasUnread && <span className="dot dot-badge" />}
         </a>
-      </header>
+      </Topbar>
 
       <InstallHint />
 
@@ -79,12 +79,12 @@ export default function Home() {
         <section className="stack gap10">
           <h2 className="label">NESTE EVENT</h2>
           <a href="#/turnering" className="card card-link">
-            <div className="date-chip"><Icon name="trophy" color="#1D5B3E" /></div>
+            <div className="date-chip"><Icon name="trophy" color="#284659" /></div>
             <div className="grow stack gap3">
               <strong className="t16">{t.title} – {t.next_round_title}</strong>
               <span className="small muted">{[t.next_round_course, t.next_round_dates].filter(Boolean).join(' · ') || 'Order of Merit'}</span>
             </div>
-            <Icon name="chevron" color="#55615B" size={20} strokeWidth={2} />
+            <Icon name="chevron" color="#5B6B75" size={20} strokeWidth={2} />
           </a>
         </section>
       )}
@@ -114,7 +114,7 @@ export default function Home() {
         <section className="grid2">
           {pages.data.map((p) => (
             <a key={p.slug} href={`#/info/${p.slug}`} className="card tile">
-              <Icon name={INFO_ICONS[p.slug] || 'info'} color="#1D5B3E" size={24} />
+              <Icon name={INFO_ICONS[p.slug] || 'info'} color="#284659" size={24} />
               <strong className="t14">{p.title}</strong>
             </a>
           ))}

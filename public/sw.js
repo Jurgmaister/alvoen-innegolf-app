@@ -1,5 +1,5 @@
 // Alvøen Innegolf – service worker: push-varsler og enkel offline-støtte for app-skallet.
-const CACHE = 'alvoen-v1';
+const CACHE = 'alvoen-v2';
 const SHELL = ['/', '/index.html', '/manifest.webmanifest', '/icons/icon-192.png'];
 
 self.addEventListener('install', (event) => {

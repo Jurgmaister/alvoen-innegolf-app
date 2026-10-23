@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Topbar from '../components/Topbar.jsx';
 import Icon from '../components/Icon.jsx';
 import { CATEGORIES, categoryLabel } from '../config.js';
 import { useQuery, fetchMessages, markMessagesSeen, formatWhen } from '../data.js';
@@ -22,7 +23,7 @@ function PushCard() {
     return (
       <div className="card stack gap8">
         <div className="row gap12 center">
-          <Icon name="bell" color="#1D5B3E" />
+          <Icon name="bell" color="#284659" />
           <strong className="t15">Få varsler på iPhone</strong>
         </div>
         <p className="small muted">
@@ -59,7 +60,7 @@ function PushCard() {
   return (
     <div className="card stack gap12">
       <div className="row gap12 center">
-        <Icon name="bell" color="#1D5B3E" />
+        <Icon name="bell" color="#284659" />
         <label htmlFor="push" className="grow stack gap2">
           <strong className="t15">Push-varsler</strong>
           <span className="small muted">{on ? 'Du får varsler om:' : 'Få beskjed med en gang noe skjer'}</span>
@@ -99,6 +100,7 @@ export default function Messages() {
 
   return (
     <main className="page">
+      <Topbar />
       <h1 className="h1">Meldinger</h1>
       <PushCard />
 

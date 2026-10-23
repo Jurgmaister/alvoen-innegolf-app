@@ -1,58 +1,20 @@
-import { Fragment, useState } from 'react';
-import { supabase } from '../supabase.js';
+import { Fragment } from 'react';
+import Icon from '../components/Icon.jsx';
+import { TOURNAMENT_SIGNUP_URL } from '../config.js';
+import Topbar from '../components/Topbar.jsx';
 import { useQuery, fetchTournament, fetchStandings } from '../data.js';
 
 const PLAYOFF_SPOTS = 4;
 
-// Handicapindeks i vinterserien: 50 % av Golfbox-HCP, én desimal.
-export const lockedIndex = (hcp) => Math.round(Number(hcp) * 0.5 * 10) / 10;
-
 function Signup({ open }) {
-  const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', hcp: '' });
-  const [status, setStatus] = useState('idle');
-  const [error, setError] = useState('');
-
   if (!open) return <p className="hero-note left">Påmeldingen er stengt.</p>;
-  if (status === 'done') return <p className="signup-done">Du er påmeldt. Vi tar kontakt om noe mangler.</p>;
-  if (!show) return <button className="btn btn-accent btn-lg" onClick={() => setShow(true)}>Meld meg på</button>;
-
-  const hcpNum = Number(String(form.hcp).replace(',', '.'));
-  const hcpValid = form.hcp !== '' && Number.isFinite(hcpNum) && hcpNum >= -10 && hcpNum <= 54;
-  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
-
-  const submit = async (e) => {
-    e.preventDefault();
-    if (!hcpValid) { setError('Skriv inn Golfbox-handicap, f.eks. 14,3.'); return; }
-    setStatus('busy');
-    setError('');
-    const { error: err } = await supabase.from('signups').insert({
-      name: form.name.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      golfbox_hcp: hcpNum,
-      locked_index: lockedIndex(hcpNum),
-    });
-    if (err) { setStatus('idle'); setError('Påmeldingen feilet. Prøv igjen, eller ta kontakt.'); return; }
-    setStatus('done');
-  };
-
   return (
-    <form className="signup stack gap10" onSubmit={submit}>
-      <label className="field-dark">Navn<input required value={form.name} onChange={set('name')} autoComplete="name" /></label>
-      <label className="field-dark">E-post<input required type="email" value={form.email} onChange={set('email')} autoComplete="email" /></label>
-      <label className="field-dark">Mobil<input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" /></label>
-      <label className="field-dark">Handicap i Golfbox
-        <input required inputMode="decimal" value={form.hcp} onChange={set('hcp')} placeholder="f.eks. 14,3" />
-      </label>
-      {hcpValid && (
-        <p className="hero-note left">Din indeks i vinterserien blir {lockedIndex(hcpNum).toLocaleString('nb-NO', { minimumFractionDigits: 1 })} (50 %), låst ved påmelding.</p>
-      )}
-      {error && <p className="error-light small">{error}</p>}
-      <button className="btn btn-accent btn-lg" disabled={status === 'busy'}>
-        {status === 'busy' ? 'Sender …' : 'Send påmelding'}
-      </button>
-    </form>
+    <>
+      <a className="btn btn-accent btn-lg" href={TOURNAMENT_SIGNUP_URL} target="_blank" rel="noopener">
+        Meld deg på <Icon name="external" size={18} strokeWidth={2} />
+      </a>
+      <p className="hero-note left">Du legger deg til turneringen i Trackman. Krever egen Trackman-konto.</p>
+    </>
   );
 }
 
@@ -61,11 +23,12 @@ export default function Tournament() {
   const s = useQuery(fetchStandings, []);
   const tour = t.data;
 
-  if (t.loading) return <main className="page"><p className="muted">Henter turnering …</p></main>;
-  if (t.error || !tour) return <main className="page"><p className="error">Kunne ikke hente turneringen.</p></main>;
+  if (t.loading) return <main className="page"><Topbar /><p className="muted">Henter turnering …</p></main>;
+  if (t.error || !tour) return <main className="page"><Topbar /><p className="error">Kunne ikke hente turneringen.</p></main>;
 
   return (
     <main className="page">
+      <Topbar />
       <div className="stack gap4">
         <span className="label">TURNERING</span>
         <h1 className="h1">{tour.title}</h1>

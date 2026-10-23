@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import Topbar from '../components/Topbar.jsx';
 import Icon from '../components/Icon.jsx';
 import KioskAdmin from './KioskAdmin.jsx';
 import { supabase, callPush } from '../supabase.js';
@@ -31,7 +32,7 @@ function Login() {
 
   return (
     <main className="page narrow">
-      <a href="#/" className="back-link"><Icon name="back" size={20} strokeWidth={2} /> Til appen</a>
+      <Topbar><a href="#/" className="link small">Til appen</a></Topbar>
       <span className="label">INTERNT</span>
       <h1 className="h1">Logg inn</h1>
       <form className="stack gap12" onSubmit={login}>
@@ -317,7 +318,6 @@ function InfoAdmin() {
 const TABS = [
   { id: 'melding', label: 'Send melding' },
   { id: 'turnering', label: 'Turnering' },
-  { id: 'pameldte', label: 'Påmeldte' },
   ...(SHOW_INFO_PAGES ? [{ id: 'info', label: 'Infosider' }] : []),
   { id: 'kiosk', label: 'Kiosk' },
 ];
@@ -365,13 +365,11 @@ export default function Admin() {
 
   return (
     <main className="page admin">
-      <header className="row between center">
-        <div className="stack gap4">
-          <span className="label">INTERNT</span>
-          <h1 className="h1">Administrasjon</h1>
-        </div>
-        <a href="#/" className="link small">Til appen</a>
-      </header>
+      <Topbar><a href="#/" className="link small">Til appen</a></Topbar>
+      <div className="stack gap4">
+        <span className="label">INTERNT</span>
+        <h1 className="h1">Administrasjon</h1>
+      </div>
 
       <nav className="admin-tabs" aria-label="Adminmeny">
         {TABS.map((t) => (
