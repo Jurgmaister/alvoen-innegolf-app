@@ -27,7 +27,7 @@ function RoundResult({ result }) {
           {rows.map((x) => (
             <tr key={x.player_id}>
               <td>{x.ties > 1 ? `T${x.place}` : x.place}</td>
-              <td>{x.name}</td>
+              <td>{x.name}{x.tee && <span className="tee-note">Tee {x.tee.name.replace(/ \(.*\)$/, '')}</span>}</td>
               <td>{x.gross}</td>
               <td>{fmtSigned(x.ph)}</td>
               <td className="strong">{x.net}</td>

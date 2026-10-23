@@ -21,6 +21,9 @@ function ScoreEntry({ data, reload }) {
   const round = ROUNDS.find((r) => r.n === roundNo);
   const ratings = data.ratingsByRound[roundNo];
   const nine = isNine(round);
+  const roundTees = data.rounds.find((r) => r.n === roundNo)?.tees || [];
+  const teesById = Object.fromEntries(roundTees.map((t) => [t.id, t]));
+  const teeOk = (t, g) => (g === 'D' ? t.cr_w !== null && t.slope_w !== null && t.par_w !== null : t.cr_m !== null && t.slope_m !== null && t.par_m !== null);
 
   const saved = useMemo(() => Object.fromEntries(
     data.scores.filter((s) => s.round_no === roundNo).map((s) => [s.player_id, s]),
@@ -33,6 +36,7 @@ function ScoreEntry({ data, reload }) {
     setDraft(Object.fromEntries(data.players.map((p) => [p.id, {
       gross: saved[p.id] ? String(saved[p.id].gross) : '',
       struck: saved[p.id]?.struck || false,
+      tee_id: saved[p.id]?.tee_id ? String(saved[p.id].tee_id) : '',
     }])));
   }, [roundNo, saved, data.players]);
   useEffect(() => { setMsg(''); }, [roundNo]);
@@ -40,9 +44,9 @@ function ScoreEntry({ data, reload }) {
   const live = useMemo(() => {
     const scores = data.players
       .filter((p) => draft[p.id] && String(draft[p.id].gross).trim() !== '')
-      .map((p) => ({ player_id: p.id, gross: num(draft[p.id].gross), struck: draft[p.id].struck }));
-    return computeRound({ scores, players: data.players, ratings, nineHoles: nine });
-  }, [draft, data.players, ratings, nine]);
+      .map((p) => ({ player_id: p.id, gross: num(draft[p.id].gross), struck: draft[p.id].struck, tee_id: draft[p.id].tee_id ? Number(draft[p.id].tee_id) : null }));
+    return computeRound({ scores, players: data.players, ratings, nineHoles: nine, tees: teesById });
+  }, [draft, data.players, ratings, nine, roundTees]); // eslint-disable-line react-hooks/exhaustive-deps
   const liveById = Object.fromEntries(live.rows.map((r) => [r.player_id, r]));
 
   const missingRatings = !ratings || [ratings.par_m, ratings.cr_m, ratings.slope_m, ratings.par_w, ratings.cr_w, ratings.slope_w].some((v) => v === null);
@@ -51,7 +55,7 @@ function ScoreEntry({ data, reload }) {
     if (!d) return false;
     const g = String(d.gross).trim();
     if (!s) return g !== '';
-    return g === '' || num(g) !== s.gross || d.struck !== s.struck;
+    return g === '' || num(g) !== s.gross || d.struck !== s.struck || (d.tee_id || '') !== (s.tee_id ? String(s.tee_id) : '');
   });
 
   const save = async () => {
@@ -63,7 +67,11 @@ function ScoreEntry({ data, reload }) {
     for (const p of changed) {
       const g = String(draft[p.id].gross).trim();
       if (g === '') deletes.push(p.id);
-      else upserts.push({ round_no: roundNo, player_id: p.id, gross: num(g), struck: draft[p.id].struck, updated_at: new Date().toISOString() });
+      else {
+        const row = { round_no: roundNo, player_id: p.id, gross: num(g), struck: draft[p.id].struck, updated_at: new Date().toISOString() };
+        if (data.teesReady) row.tee_id = draft[p.id].tee_id ? Number(draft[p.id].tee_id) : null;
+        upserts.push(row);
+      }
     }
     let error = null;
     if (upserts.length) ({ error } = await supabase.from('scores').upsert(upserts, { onConflict: 'round_no,player_id' }));
@@ -94,7 +102,7 @@ function ScoreEntry({ data, reload }) {
         <div className="card list">
           {data.players.map((p) => {
             const r = liveById[p.id];
-            const d = draft[p.id] || { gross: '', struck: false };
+            const d = draft[p.id] || { gross: '', struck: false, tee_id: '' };
             return (
               <div key={p.id} className="score-row">
                 <div className="grow stack gap2">
@@ -106,6 +114,16 @@ function ScoreEntry({ data, reload }) {
                   </span>
                   {r && r.valid && <span className="small strong">{r.place}. plass{r.ties > 1 ? ' (delt)' : ''} · {r.points} p</span>}
                   {r && !r.valid && r.check !== 'OK' && <span className="small error">{r.check}</span>}
+                  {roundTees.length > 0 && (
+                    <select className="select tee-select" aria-label={`Tee ${p.name}`} value={d.tee_id} onChange={(e) => set(p.id, { tee_id: e.target.value })}>
+                      <option value="">Standard-tee ({p.gender === 'D' ? round.women : round.men})</option>
+                      {roundTees.map((t) => (
+                        <option key={t.id} value={t.id} disabled={!teeOk(t, p.gender)}>
+                          {t.name}{t.length_m ? ` – ${t.length_m} m` : ''}{teeOk(t, p.gender) ? '' : ' (mangler verdier)'}
+                        </option>
+                      ))}
+                    </select>
+                  )}
                   {r && d.struck && <span className="small muted">Strøket – teller ikke</span>}
                   {(() => { const k = checks.find((c) => c.player_id === p.id && c.round_no === roundNo); return k && !k.ok ? <span className="tag tag-bad">Feil handicap i Trackman (kontroll {k.checked_on.split('-').reverse().join('.')})</span> : null; })()}
                 </div>
@@ -297,15 +315,16 @@ function RatingRow({ r, initial, reload }) {
       </div>
       <span className="small muted">{r.holes}{isNine(r) ? ' – bruk 9-hullsverdier (par og CR for hullene som spilles)' : ''}</span>
       <div className="ratings-grid">
-        <span className="small strong">Herre <span className="muted">({r.men})</span></span>
-        <span className="small strong">Dame <span className="muted">({r.women})</span></span>
         {[0, 1].map((side) => (
-          <div key={side} className="grid3">
-            {FIELDS.slice(side * 3, side * 3 + 3).map(([k, label]) => (
-              <label key={k} className="field small-field">{label}
-                <input inputMode="decimal" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
-              </label>
-            ))}
+          <div key={side} className="stack gap4">
+            <span className="small strong">{side ? 'Dame' : 'Herre'} <span className="muted">({side ? r.women : r.men})</span></span>
+            <div className="grid3">
+              {FIELDS.slice(side * 3, side * 3 + 3).map(([k, label]) => (
+                <label key={k} className="field small-field">{label}
+                  <input inputMode="decimal" value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value })} />
+                </label>
+              ))}
+            </div>
           </div>
         ))}
       </div>
@@ -318,13 +337,106 @@ function RatingRow({ r, initial, reload }) {
   );
 }
 
+function TeeRow({ t, roundNo, nine, reload, onDone }) {
+  const isNew = !t.id;
+  const [f, setF] = useState(() => ({
+    name: t.name ?? '', length_m: t.length_m ?? '', source: t.source ?? '', note: t.note ?? '',
+    ...Object.fromEntries(FIELDS.map(([k]) => [k, t[k] ?? ''])),
+  }));
+  const [msg, setMsg] = useState('');
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+
+  const save = async () => {
+    if (!f.name.trim()) { setMsg('Feil: tee-navn mangler'); return; }
+    const values = { round_no: roundNo, name: f.name.trim(), source: f.source.trim(), note: f.note.trim() };
+    for (const k of ['length_m', ...FIELDS.map(([x]) => x)]) {
+      const v = num(f[k]);
+      if (Number.isNaN(v)) { setMsg('Feil: bare tall i tallfeltene'); return; }
+      values[k] = v;
+    }
+    const q = isNew ? supabase.from('round_tees').insert({ ...values, sort: t.sort ?? 99 }) : supabase.from('round_tees').update(values).eq('id', t.id);
+    const { error } = await q;
+    if (error) { setMsg(`Feil: ${error.message}`); return; }
+    setMsg('Lagret'); reload(); onDone?.();
+  };
+  const remove = async () => {
+    if (!window.confirm(`Slette tee «${t.name}»? Spillere som har brukt den, får standard-tee.`)) return;
+    await supabase.from('round_tees').delete().eq('id', t.id);
+    reload();
+  };
+  const missingM = ['par_m', 'cr_m', 'slope_m'].some((k) => String(f[k]).trim() === '');
+  const missingW = ['par_w', 'cr_w', 'slope_w'].some((k) => String(f[k]).trim() === '');
+  const uncertain = /usikker|estimat/i.test(`${f.source} ${f.note}`);
+
+  return (
+    <div className="list-item stack gap8">
+      <div className="grid2">
+        <label className="field small-field">Tee<input value={f.name} onChange={set('name')} placeholder="f.eks. Gul" /></label>
+        <label className="field small-field">Lengde (m)<input inputMode="numeric" value={f.length_m} onChange={set('length_m')} /></label>
+      </div>
+      <div className="row wrap gap6">
+        {missingM && <span className="tag tag-none">Herre: mangler</span>}
+        {missingW && <span className="tag tag-none">Dame: mangler</span>}
+        {uncertain && <span className="tag tag-warn">Kontroller mot Trackman</span>}
+      </div>
+      <div className="ratings-grid">
+        {[0, 1].map((side) => (
+          <div key={side} className="stack gap4">
+            <span className="small strong">{side ? 'Dame' : 'Herre'}</span>
+            <div className="grid3">
+              {FIELDS.slice(side * 3, side * 3 + 3).map(([k, label]) => (
+                <label key={k} className="field small-field">{label}{nine && k.startsWith('par') ? ' (9)' : ''}
+                  <input inputMode="decimal" value={f[k]} onChange={set(k)} />
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <label className="field small-field">Kilde<input value={f.source} onChange={set('source')} /></label>
+      <label className="field small-field">Merknad<input value={f.note} onChange={set('note')} /></label>
+      <div className="row gap8 center wrap">
+        <button className="btn btn-primary btn-sm" onClick={save}>{isNew ? 'Legg til tee' : 'Lagre tee'}</button>
+        {isNew ? <button className="btn btn-ghost btn-sm" onClick={onDone}>Avbryt</button> : <button className="btn btn-ghost btn-sm" onClick={remove}>Slett</button>}
+        {msg && <span className={msg.startsWith('Feil') ? 'error small' : 'success small'}>{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
 function Ratings({ data, reload }) {
+  const [roundNo, setRoundNo] = useState((currentRound() || ROUNDS[0]).n);
+  const [adding, setAdding] = useState(false);
+  const r = ROUNDS.find((x) => x.n === roundNo);
+  const tees = data.rounds.find((x) => x.n === roundNo)?.tees || [];
   return (
     <div className="stack gap14">
-      <p className="small muted">Par, baneverdi (CR) og slope for herre- og dametee per runde. Verdiene fra regnearket er lagt inn; runder merket «Mangler» må fylles ut.</p>
-      <div className="card list">
-        {ROUNDS.map((r) => <RatingRow key={r.n} r={r} initial={data.ratingsByRound[r.n]} reload={reload} />)}
-      </div>
+      <label className="field">Runde
+        <select className="select" value={roundNo} onChange={(e) => { setRoundNo(Number(e.target.value)); setAdding(false); }}>
+          {ROUNDS.map((x) => <option key={x.n} value={x.n}>R{x.n} · {x.course}</option>)}
+        </select>
+      </label>
+      <section className="stack gap8">
+        <h2 className="label">STANDARD-TEE (TRACKMAN-OPPSETTET)</h2>
+        <p className="small muted">Brukes når spilleren ikke har valgt annen tee.</p>
+        <div className="card list">
+          <RatingRow key={`${r.n}-${data.ratingsByRound[r.n]?.cr_m}-${data.ratingsByRound[r.n]?.cr_w}`} r={r} initial={data.ratingsByRound[r.n]} reload={reload} />
+        </div>
+      </section>
+      {data.teesReady ? (
+        <section className="stack gap8">
+          <h2 className="label">ALLE TEE-ER ({tees.length})</h2>
+          <p className="small muted">{isNine(r) ? 'Ni-hullsrunde: par og CR gjelder de ni hullene som spilles. ' : ''}Verdier merket «Kontroller» er estimater eller usikre – rett dem etter Trackman.</p>
+          <div className="card list">
+            {tees.map((t) => <TeeRow key={`${t.id}-${t.cr_m}-${t.cr_w}-${t.name}`} t={t} roundNo={r.n} nine={isNine(r)} reload={reload} />)}
+            {tees.length === 0 && !adding && <p className="muted small pad12">Ingen tee-er lagt inn for denne runden.</p>}
+            {adding && <TeeRow t={{ sort: tees.length + 1 }} roundNo={r.n} nine={isNine(r)} reload={reload} onDone={() => setAdding(false)} />}
+          </div>
+          {!adding && <button className="btn btn-ghost" onClick={() => setAdding(true)}><Icon name="plus" size={18} /> Legg til tee</button>}
+        </section>
+      ) : (
+        <div className="card small">Kjør <strong>supabase/tee.sql</strong> i Supabase for å få alle tee-er per runde.</div>
+      )}
     </div>
   );
 }

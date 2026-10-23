@@ -75,11 +75,13 @@ export function ratingFor(ratings, gender) {
 // Regner ut én runde.
 // players: [{ id, name, gender, hcp_index }], scores: [{ player_id, gross, struck }]
 // Returnerer rader med ph, net, valid, check, place, points – sortert etter plass.
-export function computeRound({ scores, players, ratings, nineHoles }) {
+// tees (valgfritt): { [tee_id]: tee } – brukes når scoren har tee_id (spilleren valgte annen tee).
+export function computeRound({ scores, players, ratings, nineHoles, tees = {} }) {
   const byId = new Map(players.map((p) => [p.id, p]));
   const rows = scores.map((s) => {
     const p = byId.get(s.player_id);
-    const rating = p ? ratingFor(ratings, p.gender) : null;
+    const tee = s.tee_id ? tees[s.tee_id] : null;
+    const rating = p ? ratingFor(tee || ratings, p.gender) : null;
     const ph = p ? playingHandicap(p.hcp_index, rating, nineHoles) : null;
     const gross = s.gross === null || s.gross === undefined || s.gross === '' ? null : Number(s.gross);
     const net = gross !== null && ph !== null ? gross - ph : null;
@@ -89,7 +91,7 @@ export function computeRound({ scores, players, ratings, nineHoles }) {
     else if (ph === null) check = 'Mangler CR/slope';
     else if (gross === null) check = 'Mangler brutto';
     const valid = check === 'OK' && net !== null && !s.struck;
-    return { ...s, player: p, name: p?.name ?? '?', hcp_index: p?.hcp_index ?? null, ph, gross, net, check, valid, place: null, points: null, ties: 0 };
+    return { ...s, player: p, tee: tee || null, name: p?.name ?? '?', hcp_index: p?.hcp_index ?? null, ph, gross, net, check, valid, place: null, points: null, ties: 0 };
   });
   const valid = rows.filter((r) => r.valid);
   const n = valid.length;
@@ -108,7 +110,7 @@ export function computeRound({ scores, players, ratings, nineHoles }) {
 export function computeOrderOfMerit({ players, rounds }) {
   const results = {}; // round n -> computeRound-resultat
   for (const r of rounds) {
-    results[r.n] = computeRound({ scores: r.scores, players, ratings: r.ratings, nineHoles: r.nineHoles });
+    results[r.n] = computeRound({ scores: r.scores, players, ratings: r.ratings, nineHoles: r.nineHoles, tees: r.teesById || {} });
   }
   const order = [...players].sort((a, b) => (a.created_at || '').localeCompare(b.created_at || '') || a.id - b.id);
   const table = order.map((p, idx) => {

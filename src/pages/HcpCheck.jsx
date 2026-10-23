@@ -42,6 +42,7 @@ export default function HcpCheck({ data }) {
   const { checks, error, reload } = useChecks();
   const [playerId, setPlayerId] = useState('');
   const [roundNo, setRoundNo] = useState((currentRound() || ROUNDS[ROUNDS.length - 1]).n);
+  const [teeId, setTeeId] = useState('');
   const [course, setCourse] = useState({ slope: '', cr: '', par: '', nine: false, name: '' });
   const [mode, setMode] = useState('spill');
   const [entered, setEntered] = useState('');
@@ -52,16 +53,18 @@ export default function HcpCheck({ data }) {
   const players = useMemo(() => [...data.players].sort((a, b) => a.name.localeCompare(b.name, 'nb')), [data.players]);
   const p = players.find((x) => String(x.id) === String(playerId));
   const round = ROUNDS.find((r) => r.n === roundNo);
+  const roundTees = data.rounds?.find((r) => r.n === roundNo)?.tees || [];
+  const tee = roundTees.find((t) => String(t.id) === String(teeId));
 
   // Fyll inn baneverdier fra runden og spillerens kjønn (kan overstyres).
   useEffect(() => {
     if (!round) { setCourse({ slope: '', cr: '', par: '', nine: false, name: '' }); return; }
-    const rt = ratingFor(data.ratingsByRound[round.n], p?.gender || 'H');
+    const rt = ratingFor(tee || data.ratingsByRound[round.n], p?.gender || 'H');
     setCourse({
       slope: rt?.slope ?? '', cr: rt?.cr ?? '', par: rt?.par ?? '', nine: isNine(round),
-      name: `${round.course} – ${p?.gender === 'D' ? round.women : round.men}`,
+      name: `${round.course} – ${tee ? tee.name + (tee.length_m ? ` ${tee.length_m} m` : '') : (p?.gender === 'D' ? round.women : round.men)}`,
     });
-  }, [roundNo, p?.gender, data.ratingsByRound]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [roundNo, teeId, p?.gender, data.ratingsByRound, data.rounds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const co = { slope: num(course.slope), cr: num(course.cr), par: num(course.par) };
   const coOk = Number.isInteger(co.slope) && co.slope >= 55 && co.slope <= 155 && Number.isFinite(co.cr) && co.cr > 15 && co.cr < 90 && Number.isInteger(co.par) && co.par >= 27 && co.par <= 80;
@@ -121,11 +124,19 @@ export default function HcpCheck({ data }) {
           </select>
         </label>
         <label className="field">Runde
-          <select className="select" value={roundNo} onChange={(e) => setRoundNo(Number(e.target.value))}>
+          <select className="select" value={roundNo} onChange={(e) => { setRoundNo(Number(e.target.value)); setTeeId(''); }}>
             {ROUNDS.map((r) => <option key={r.n} value={r.n}>R{r.n} · {r.course}</option>)}
             <option value={0}>Annen bane (fyll inn selv)</option>
           </select>
         </label>
+        {roundNo !== 0 && roundTees.length > 0 && (
+          <label className="field">Tee spilt
+            <select className="select" value={teeId} onChange={(e) => setTeeId(e.target.value)}>
+              <option value="">Standard-tee ({p?.gender === 'D' ? round.women : round.men})</option>
+              {roundTees.map((t) => <option key={t.id} value={t.id}>{t.name}{t.length_m ? ` – ${t.length_m} m` : ''}</option>)}
+            </select>
+          </label>
+        )}
         <fieldset className="course-box">
           <legend>Banen som er spilt i Trackman</legend>
           {roundNo === 0 && <label className="field small-field">Bane<input value={course.name} onChange={(e) => setCourse({ ...course, name: e.target.value })} placeholder="f.eks. Pebble Beach, gul tee" /></label>}

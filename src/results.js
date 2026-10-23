@@ -13,11 +13,13 @@ export function useResults({ admin = false } = {}) {
     const playersQ = admin
       ? supabase.from('players').select('*').order('created_at')
       : supabase.from('players_public').select('*').order('created_at');
-    const [p, rr, sc] = await Promise.all([
+    const [p, rr, sc, tt] = await Promise.all([
       playersQ,
       supabase.from('round_ratings').select('*'),
       supabase.from('scores').select('*'),
+      supabase.from('round_tees').select('*').order('round_no').order('sort').order('id'),
     ]);
+    const allTees = tt.error ? [] : (tt.data || []); // tee.sql ikke kjørt ennå: bare standardverdier
     const err = p.error || rr.error || sc.error;
     if (err) { setState({ loading: false, error: err.message, data: null }); return; }
     const ratingsByRound = Object.fromEntries((rr.data || []).map((r) => [r.round_no, r]));
@@ -25,9 +27,11 @@ export function useResults({ admin = false } = {}) {
     const rounds = ROUNDS.map((r) => ({
       n: r.n, nineHoles: isNine(r), ratings: ratingsByRound[r.n] || null,
       scores: (sc.data || []).filter((s) => s.round_no === r.n),
+      tees: allTees.filter((t) => t.round_no === r.n),
+      teesById: Object.fromEntries(allTees.filter((t) => t.round_no === r.n).map((t) => [t.id, t])),
     }));
     const oom = computeOrderOfMerit({ players, rounds });
-    setState({ loading: false, error: null, data: { players, ratingsByRound, scores: sc.data || [], rounds, ...oom } });
+    setState({ loading: false, error: null, data: { players, ratingsByRound, scores: sc.data || [], rounds, tees: allTees, teesReady: !tt.error, ...oom } });
   }, [admin]);
 
   useEffect(() => { load(); }, [load]);
