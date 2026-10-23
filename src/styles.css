@@ -118,7 +118,7 @@ h1, h2, p { margin: 0; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   min-height: 44px; padding: 0 18px; border-radius: 14px; border: 0;
-  font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer;
+  font-size: 15px; font-weight: 600; text-decoration: none; cursor: pointer; white-space: nowrap;
 }
 .btn:disabled { opacity: 0.6; cursor: default; }
 .btn-lg { min-height: 52px; font-size: 16px; width: 100%; }
@@ -244,3 +244,10 @@ input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visib
 .round-now .round-n { background: var(--navy); color: #FFFFFF; }
 .round-done .t15 { color: var(--muted); }
 .round-final { background: var(--sage); }
+
+/* Statistikk */
+.stat { display: flex; flex-direction: column; gap: 4px; }
+.stat-value { font-size: 32px; font-weight: 600; line-height: 1.1; color: var(--navy); }
+.stat-label { font-size: 14px; font-weight: 500; }
+.week-label { width: 104px; flex-shrink: 0; }
+.week-n { width: 28px; text-align: right; }

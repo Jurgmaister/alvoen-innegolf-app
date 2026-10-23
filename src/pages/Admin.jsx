@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import Topbar from '../components/Topbar.jsx';
 import Icon from '../components/Icon.jsx';
 import KioskAdmin from './KioskAdmin.jsx';
+import StatsAdmin from './StatsAdmin.jsx';
 import { supabase, callPush } from '../supabase.js';
 import { CATEGORIES, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPages, formatWhen } from '../data.js';
@@ -317,6 +318,7 @@ const TABS = [
   { id: 'turnering', label: 'Turnering' },
   ...(SHOW_INFO_PAGES ? [{ id: 'info', label: 'Infosider' }] : []),
   { id: 'kiosk', label: 'Kiosk' },
+  { id: 'statistikk', label: 'Statistikk' },
 ];
 
 export default function Admin() {
@@ -380,6 +382,7 @@ export default function Admin() {
       {tab === 'pameldte' && <Signups />}
       {tab === 'info' && <InfoAdmin />}
       {tab === 'kiosk' && <KioskAdmin />}
+      {tab === 'statistikk' && <StatsAdmin />}
 
       <footer className="footer row between center">
         <span className="small muted">Innlogget som {session.user.email}</span>

@@ -92,6 +92,13 @@ Koden ligger i GitHub-prosjektet `Jurgmaister/alvoen-innegolf-app`. Hver gang ko
 3. Trykk **−** når noe er tatt ut, og **+** ved påfylling. Trykk på en vare for å endre den.
 4. Varer under minimum havner på handlelisten, som kan deles med **Del handleliste**.
 
+## Statistikk
+
+1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/statistikk.sql` og trykk **Run**.
+2. På adminsiden: fanen **Statistikk** viser antall enheter, hvor mange som har appen på hjemskjermen, push-varsler på og aktive brukere.
+
+Tellingen er anonym (et tilfeldig nummer per enhet, ingen navn eller kontaktinfo) og starter når filen er kjørt.
+
 ## Daglig bruk (admin)
 
 - **Send melding**: velg kategori (Turnering, Drift, Tilbud), skriv tittel og tekst og send. Kundene som har valgt kategorien får push. Alle ser meldingen i appen.

@@ -6,8 +6,10 @@ import '@fontsource/poppins/latin-500.css';
 import '@fontsource/poppins/latin-600.css';
 import './styles.css';
 import { startUpdateChecks } from './update.js';
+import { startTracking } from './track.js';
 
 startUpdateChecks();
+startTracking();
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
