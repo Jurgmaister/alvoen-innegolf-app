@@ -9,8 +9,9 @@ import TabBar from './components/TabBar.jsx';
 
 function parseRoute() {
   const hash = window.location.hash.replace(/^#\/?/, '');
-  // Innloggingslenker fra Supabase kan komme med egne parametere; de går til admin.
-  if (window.location.search.includes('code=') || hash.startsWith('access_token')) return ['admin'];
+  // Innloggingslenker fra e-posten kommer til /?admin med innloggingen i #-delen; de går til admin.
+  if (new URLSearchParams(window.location.search).has('admin')
+    || hash.startsWith('access_token') || hash.startsWith('error')) return ['admin'];
   return hash.split('?')[0].split('/').filter(Boolean);
 }
 

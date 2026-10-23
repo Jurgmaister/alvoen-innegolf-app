@@ -5,21 +5,40 @@ import { CATEGORIES, categoryLabel } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPages, formatWhen } from '../data.js';
 
 // ---------- Innlogging ----------
-function Login() {
+function norskFeil(message = '') {
+  const m = message.toLowerCase();
+  if (m.includes('only request this after')) {
+    const s = message.match(/(\d+)\s*second/);
+    return `Vent ${s ? s[1] : '30'} sekunder før du ber om en ny e-post.`;
+  }
+  if (m.includes('rate limit')) return 'For mange innloggings-e-poster på kort tid. Vent en time og prøv igjen.';
+  if (m.includes('expired') || m.includes('invalid')) return 'Innloggingslenken er brukt eller utløpt. Be om en ny.';
+  if (m.includes('signups not allowed') || m.includes('not allowed')) return 'Denne e-posten har ikke tilgang.';
+  return message || 'Noe gikk galt. Prøv igjen.';
+}
+
+// Feil fra en innloggingslenke (f.eks. utløpt) kommer i #-delen av adressen.
+function linkError() {
+  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const desc = params.get('error_description');
+  return desc ? norskFeil(desc.replace(/\+/g, ' ')) : '';
+}
+
+function Login({ initialError = '' }) {
   const [email, setEmail] = useState('');
   const [step, setStep] = useState('email');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError);
 
   const sendCode = async (e) => {
     e.preventDefault();
     setBusy(true); setError('');
     const { error: err } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}/#/admin` },
+      options: { emailRedirectTo: `${window.location.origin}/?admin` },
     });
     setBusy(false);
-    if (err) setError(err.message); else setStep('code');
+    if (err) setError(norskFeil(err.message)); else setStep('code');
   };
 
   return (
@@ -30,7 +49,7 @@ function Login() {
       {step === 'email' ? (
         <form className="stack gap12" onSubmit={sendCode}>
           <label className="field">E-post<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></label>
-          <button className="btn btn-primary btn-lg" disabled={busy}>{busy ? 'Sender …' : 'Send innloggingskode'}</button>
+          <button className="btn btn-primary btn-lg" disabled={busy}>{busy ? 'Sender …' : 'Send innloggingslenke'}</button>
         </form>
       ) : (
         <div className="stack gap12">
@@ -322,6 +341,7 @@ export default function Admin() {
   const [session, setSession] = useState(undefined);
   const [isAdmin, setIsAdmin] = useState(null);
   const [tab, setTab] = useState('melding');
+  const [urlError] = useState(linkError);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -329,16 +349,22 @@ export default function Admin() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Rydd adressen etter innloggingslenken (fjern ?admin og eventuell feil i #-delen).
   useEffect(() => {
-    if (!session) { setIsAdmin(null); return; }
-    if (window.location.search.includes('code=')) {
+    if (session === undefined) return;
+    const hash = window.location.hash;
+    if (window.location.search || hash.startsWith('#error') || hash.startsWith('#access_token')) {
       window.history.replaceState(null, '', `${window.location.pathname}#/admin`);
     }
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) { setIsAdmin(null); return; }
     supabase.rpc('is_admin').then(({ data }) => setIsAdmin(Boolean(data)));
   }, [session]);
 
   if (session === undefined) return <main className="page"><p className="muted">Laster …</p></main>;
-  if (!session) return <Login />;
+  if (!session) return <Login initialError={urlError} />;
   if (isAdmin === null) return <main className="page"><p className="muted">Sjekker tilgang …</p></main>;
 
   const logout = () => supabase.auth.signOut();

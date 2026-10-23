@@ -3,7 +3,9 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY, isConfigured } from './config.js';
 
 export const supabase = isConfigured
   ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'pkce' },
+      // 'implicit': innloggingslenken virker uansett hvilken nettleser e-posten åpnes i
+      // (Gmail-appen, Safari eller appen på hjemskjermen).
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' },
     })
   : null;
 
