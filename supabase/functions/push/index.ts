@@ -1,14 +1,17 @@
 // Alvøen Innegolf – push-funksjon (Supabase Edge Function, navn: "push")
+//
 // Handlinger:
 //   subscribe   – lagrer/oppdaterer et push-abonnement med valgte kategorier (åpen)
 //   unsubscribe – fjerner et abonnement (åpen)
-//   send        – lagrer meldingen og sender push til alle som abonnerer på kategorien (kun admin)
+//   send        – lagrer meldingen og sender push til alle som følger kategorien (kun admin)
+//   stats       – antall enheter med varsler på (kun admin)
 //
-// Hemmeligheter som må være satt (Edge Functions → Secrets):
+// Hemmeligheter (Edge Functions → Secrets):
 //   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (f.eks. mailto:post@alvoeninnegolf.no)
 // SUPABASE_URL og SUPABASE_SERVICE_ROLE_KEY settes automatisk av Supabase.
+//
+// Web Push er laget med Web Crypto (RFC 8291 / RFC 8292), uten eksterne push-bibliotek.
 
-import webpush from "npm:web-push@3.6.7";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const CATEGORIES = ["turnering", "drift", "tilbud"];
@@ -26,19 +29,136 @@ function json(data: unknown, status = 200) {
   });
 }
 
-const supabase = createClient(
-  Deno.env.get("SUPABASE_URL")!,
-  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-  { auth: { persistSession: false } },
-);
+// ---------- Hjelpere ----------
+const enc = new TextEncoder();
 
-webpush.setVapidDetails(
-  Deno.env.get("VAPID_SUBJECT") ?? "mailto:post@alvoeninnegolf.no",
-  Deno.env.get("VAPID_PUBLIC_KEY")!,
-  Deno.env.get("VAPID_PRIVATE_KEY")!,
-);
+function b64urlToBytes(s: string): Uint8Array {
+  const b64 = s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4);
+  const bin = atob(b64);
+  return Uint8Array.from(bin, (c) => c.charCodeAt(0));
+}
 
-async function requireAdmin(req: Request): Promise<string | null> {
+function bytesToB64url(bytes: Uint8Array): string {
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function concat(...parts: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let i = 0;
+  for (const p of parts) { out.set(p, i); i += p.length; }
+  return out;
+}
+
+// Tåler at verdien er limt inn med anførselstegn, mellomrom eller «NAVN=» foran.
+function secret(name: string): string {
+  const unquote = (s: string) => s.trim().replace(/^["']+|["']+$/g, "").trim();
+  let v = unquote(Deno.env.get(name) ?? "");
+  if (v.toUpperCase().startsWith(name + "=")) v = unquote(v.slice(name.length + 1));
+  return v;
+}
+
+async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number) {
+  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, ["deriveBits"]);
+  const bits = await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt, info }, key, length * 8);
+  return new Uint8Array(bits);
+}
+
+// ---------- VAPID (RFC 8292) ----------
+type Vapid = { publicKey: string; signingKey: CryptoKey; subject: string };
+let vapidCache: Vapid | null = null;
+
+async function getVapid(): Promise<Vapid> {
+  if (vapidCache) return vapidCache;
+  const publicKey = secret("VAPID_PUBLIC_KEY");
+  const privateKey = secret("VAPID_PRIVATE_KEY");
+  let subject = secret("VAPID_SUBJECT") || "mailto:post@alvoeninnegolf.no";
+  if (!publicKey || !privateKey) {
+    throw new Error("Push-nøklene mangler. Legg inn VAPID_PUBLIC_KEY og VAPID_PRIVATE_KEY under Edge Functions → Secrets.");
+  }
+  if (!/^(mailto:|https:)/.test(subject)) subject = `mailto:${subject}`;
+  let pub: Uint8Array, d: Uint8Array;
+  try {
+    pub = b64urlToBytes(publicKey);
+    d = b64urlToBytes(privateKey);
+  } catch {
+    throw new Error("Push-nøklene har feil format. Kopier dem på nytt fra nøkkelfilen.");
+  }
+  if (pub.length !== 65 || pub[0] !== 4) throw new Error("VAPID_PUBLIC_KEY er feil. Kopier den på nytt fra nøkkelfilen.");
+  if (d.length !== 32) throw new Error("VAPID_PRIVATE_KEY er feil. Kopier den på nytt fra nøkkelfilen.");
+  const jwk = {
+    kty: "EC", crv: "P-256", ext: true,
+    x: bytesToB64url(pub.slice(1, 33)), y: bytesToB64url(pub.slice(33, 65)), d: bytesToB64url(d),
+  };
+  let signingKey: CryptoKey;
+  try {
+    signingKey = await crypto.subtle.importKey("jwk", jwk, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  } catch {
+    throw new Error("Push-nøklene hører ikke sammen. Kopier begge på nytt fra samme nøkkelfil.");
+  }
+  vapidCache = { publicKey: bytesToB64url(pub), signingKey, subject };
+  return vapidCache;
+}
+
+async function vapidHeader(endpoint: string, vapid: Vapid): Promise<string> {
+  const aud = new URL(endpoint).origin;
+  const header = bytesToB64url(enc.encode(JSON.stringify({ typ: "JWT", alg: "ES256" })));
+  const claims = bytesToB64url(enc.encode(JSON.stringify({
+    aud, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: vapid.subject,
+  })));
+  const unsigned = `${header}.${claims}`;
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, vapid.signingKey, enc.encode(unsigned)));
+  return `vapid t=${unsigned}.${bytesToB64url(sig)}, k=${vapid.publicKey}`;
+}
+
+// ---------- Kryptering av innholdet (RFC 8291, aes128gcm) ----------
+export async function encryptPayload(payload: Uint8Array, p256dh: string, auth: string): Promise<Uint8Array> {
+  const uaPublic = b64urlToBytes(p256dh);
+  const authSecret = b64urlToBytes(auth);
+  const uaKey = await crypto.subtle.importKey("raw", uaPublic, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const asKeys = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]) as CryptoKeyPair;
+  const asPublic = new Uint8Array(await crypto.subtle.exportKey("raw", asKeys.publicKey));
+  const ecdhSecret = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaKey }, asKeys.privateKey, 256));
+
+  const keyInfo = concat(enc.encode("WebPush: info\0"), uaPublic, asPublic);
+  const ikm = await hkdf(authSecret, ecdhSecret, keyInfo, 32);
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const cek = await hkdf(salt, ikm, enc.encode("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdf(salt, ikm, enc.encode("Content-Encoding: nonce\0"), 12);
+
+  const aesKey = await crypto.subtle.importKey("raw", cek, "AES-GCM", false, ["encrypt"]);
+  const plaintext = concat(payload, new Uint8Array([2]));
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce }, aesKey, plaintext));
+
+  const rs = new Uint8Array([0, 0, 16, 0]); // 4096
+  return concat(salt, rs, new Uint8Array([asPublic.length]), asPublic, ciphertext);
+}
+
+async function sendPush(sub: { endpoint: string; p256dh: string; auth: string }, payload: string, vapid: Vapid) {
+  const body = await encryptPayload(enc.encode(payload), sub.p256dh, sub.auth);
+  return fetch(sub.endpoint, {
+    method: "POST",
+    headers: {
+      Authorization: await vapidHeader(sub.endpoint, vapid),
+      "Content-Encoding": "aes128gcm",
+      "Content-Type": "application/octet-stream",
+      TTL: String(60 * 60 * 24),
+      Urgency: "normal",
+    },
+    body,
+  });
+}
+
+// ---------- Database ----------
+function db() {
+  const url = Deno.env.get("SUPABASE_URL");
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !key) throw new Error("Supabase-oppsettet mangler i funksjonen.");
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+async function requireAdmin(req: Request, supabase: ReturnType<typeof db>): Promise<string | null> {
   const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
   if (!token) return null;
   const { data, error } = await supabase.auth.getUser(token);
@@ -48,10 +168,8 @@ async function requireAdmin(req: Request): Promise<string | null> {
   return row ? email : null;
 }
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
-  if (req.method !== "POST") return json({ error: "Kun POST" }, 405);
-
+// ---------- Forespørsler ----------
+async function handle(req: Request): Promise<Response> {
   let payload: Record<string, any>;
   try {
     payload = await req.json();
@@ -59,6 +177,7 @@ Deno.serve(async (req) => {
     return json({ error: "Ugyldig forespørsel" }, 400);
   }
 
+  const supabase = db();
   const action = payload.action;
 
   if (action === "subscribe") {
@@ -75,7 +194,7 @@ Deno.serve(async (req) => {
     const { error } = await supabase.from("push_subscriptions").upsert({
       endpoint, p256dh, auth, topics, updated_at: new Date().toISOString(),
     });
-    if (error) return json({ error: error.message }, 500);
+    if (error) throw new Error(`Kunne ikke lagre abonnementet: ${error.message}`);
     return json({ ok: true });
   }
 
@@ -85,9 +204,14 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
+  if (action === "stats") {
+    if (!(await requireAdmin(req, supabase))) return json({ error: "Ikke innlogget som administrator" }, 401);
+    const { count } = await supabase.from("push_subscriptions").select("*", { count: "exact", head: true });
+    return json({ ok: true, subscribers: count ?? 0 });
+  }
+
   if (action === "send") {
-    const admin = await requireAdmin(req);
-    if (!admin) return json({ error: "Ikke innlogget som administrator" }, 401);
+    if (!(await requireAdmin(req, supabase))) return json({ error: "Ikke innlogget som administrator" }, 401);
 
     const category = String(payload.category ?? "");
     const title = String(payload.title ?? "").trim().slice(0, 120);
@@ -96,13 +220,15 @@ Deno.serve(async (req) => {
       return json({ error: "Velg kategori og skriv en tittel" }, 400);
     }
 
+    const vapid = await getVapid(); // stopper før meldingen lagres hvis nøklene er feil
+
     const { data: msg, error: insertError } = await supabase
       .from("messages").insert({ category, title, body }).select().single();
-    if (insertError) return json({ error: insertError.message }, 500);
+    if (insertError) throw new Error(`Kunne ikke lagre meldingen: ${insertError.message}`);
 
     const { data: subs, error: subsError } = await supabase
       .from("push_subscriptions").select("endpoint, p256dh, auth").contains("topics", [category]);
-    if (subsError) return json({ error: subsError.message }, 500);
+    if (subsError) throw new Error(`Kunne ikke hente mottakere: ${subsError.message}`);
 
     const notification = JSON.stringify({
       title,
@@ -113,29 +239,34 @@ Deno.serve(async (req) => {
 
     let sent = 0;
     const gone: string[] = [];
+    const failures: string[] = [];
     await Promise.all((subs ?? []).map(async (s) => {
       try {
-        await webpush.sendNotification(
-          { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-          notification,
-          { TTL: 60 * 60 * 24 },
-        );
-        sent++;
-      } catch (e: any) {
-        if (e?.statusCode === 404 || e?.statusCode === 410) gone.push(s.endpoint);
+        const res = await sendPush(s, notification, vapid);
+        if (res.ok) sent++;
+        else if (res.status === 404 || res.status === 410) gone.push(s.endpoint);
+        else failures.push(`${res.status} ${(await res.text()).slice(0, 120)}`);
+      } catch (e) {
+        failures.push(e instanceof Error ? e.message : String(e));
       }
     }));
     if (gone.length) await supabase.from("push_subscriptions").delete().in("endpoint", gone);
+    if (failures.length) console.error("Push-feil:", failures);
 
-    return json({ ok: true, sent, total: subs?.length ?? 0 });
-  }
-
-  if (action === "stats") {
-    const admin = await requireAdmin(req);
-    if (!admin) return json({ error: "Ikke innlogget som administrator" }, 401);
-    const { count } = await supabase.from("push_subscriptions").select("*", { count: "exact", head: true });
-    return json({ ok: true, subscribers: count ?? 0 });
+    return json({ ok: true, sent, total: subs?.length ?? 0, failed: failures.length, firstFailure: failures[0] ?? null });
   }
 
   return json({ error: "Ukjent handling" }, 400);
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Kun POST" }, 405);
+  try {
+    return await handle(req);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(message);
+    return json({ error: message }, 500);
+  }
 });

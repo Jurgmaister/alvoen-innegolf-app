@@ -65,7 +65,10 @@ function SendMessage() {
     setBusy(true); setError(''); setResult('');
     try {
       const r = await callPush('send', { category, title, body });
-      setResult(`Sendt. Varsel levert til ${r.sent} av ${r.total} enheter.`);
+      setResult(r.total === 0
+        ? 'Meldingen er lagt ut i appen. Ingen enheter har slått på varsler for denne kategorien ennå.'
+        : `Sendt. Varsel levert til ${r.sent} av ${r.total} enheter.`);
+      if (r.failed) setError(`${r.failed} varsel feilet: ${r.firstFailure}`);
       setTitle(''); setBody('');
       recent.reload();
     } catch (err) {
