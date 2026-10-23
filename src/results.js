@@ -38,5 +38,11 @@ export function useResults({ admin = false } = {}) {
   return { ...state, reload: load };
 }
 
-export const fmtIndex = (v) => (v === null || v === undefined ? '–' : Number(v).toLocaleString('nb-NO', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+// Plusshandicap (negativ indeks) vises med + som i Golfbox.
+export const fmtIndex = (v) => {
+  if (v === null || v === undefined || v === '') return '–';
+  const n = Number(v);
+  const t = Math.abs(n).toLocaleString('nb-NO', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  return n < 0 ? `+${t}` : t;
+};
 export const fmtSigned = (v) => (v === null || v === undefined ? '–' : v > 0 ? `+${v}` : String(v));

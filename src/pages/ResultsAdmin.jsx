@@ -6,8 +6,9 @@ import { hcpIndexUsed, computeRound } from '../scoring.js';
 import { useResults, isNine, fmtIndex, fmtSigned } from '../results.js';
 import HcpCheck, { useChecks } from './HcpCheck.jsx';
 
+// Plusshandicap skrives med + (som i Golfbox) og lagres som negativ indeks.
 const num = (v) => {
-  const s = String(v ?? '').trim().replace(',', '.');
+  const s = String(v ?? '').trim().replace(',', '.').replace(/^\+/, '-');
   if (s === '') return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : NaN;
@@ -78,7 +79,7 @@ function ScoreEntry({ data, reload }) {
     if (!error && deletes.length) ({ error } = await supabase.from('scores').delete().eq('round_no', roundNo).in('player_id', deletes));
     setBusy(false);
     if (error) { setMsg(`Feil: ${error.message}`); return; }
-    setMsg(`Lagret runde ${roundNo}. Order of Merit er oppdatert.`);
+    setMsg(`Lagret runde ${roundNo}. Leaderboard / OoM er oppdatert.`);
     reload();
   };
 
@@ -151,10 +152,12 @@ function ScoreEntry({ data, reload }) {
 // ---------- Spillere ----------
 const EMPTY = { name: '', trackman_name: '', gender: 'H', golfbox_hcp: '', index_no_golfbox: '', contact: '', note: '' };
 
+const hcpText = (v) => (v === null || v === undefined || v === '' ? '' : fmtIndex(v));
+
 function PlayerForm({ initial, onSave, onCancel, onDelete, isNew, hasVerifyCols }) {
   const [f, setF] = useState({
     ...EMPTY, ...initial,
-    golfbox_hcp: initial?.golfbox_hcp ?? '', index_no_golfbox: initial?.index_no_golfbox ?? '',
+    golfbox_hcp: hcpText(initial?.golfbox_hcp), index_no_golfbox: hcpText(initial?.index_no_golfbox),
     golfbox_verified: initial?.golfbox_verified ?? false,
     golfbox_checked_on: initial?.golfbox_checked_on ?? new Date().toISOString().slice(0, 10),
   });
@@ -230,7 +233,98 @@ function PlayerChips({ p, checks }) {
   );
 }
 
-function Players({ data, reload }) {
+// ---------- Innmeldt HCP fra appen ----------
+const norm = (s) => (s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
+export async function countHcpSubmissions() {
+  const { count, error } = await supabase.from('hcp_submissions').select('id', { count: 'exact', head: true }).eq('status', 'ny');
+  return error ? 0 : count || 0;
+}
+
+function HcpSubmissions({ data, reload, onChange }) {
+  const [subs, setSubs] = useState(null);
+  const [msg, setMsg] = useState('');
+  const [choice, setChoice] = useState({});
+
+  const load = async () => {
+    const { data: rows, error } = await supabase.from('hcp_submissions').select('*').eq('status', 'ny').order('created_at');
+    setSubs(error ? [] : rows);
+  };
+  useEffect(() => { load(); }, []);
+  if (!subs || subs.length === 0) return null;
+
+  const matchFor = (x) => data.players.find((p) => [norm(p.name), norm(p.trackman_name)].includes(norm(x.name))
+    || (x.trackman_name && [norm(p.name), norm(p.trackman_name)].includes(norm(x.trackman_name))));
+
+  const mark = async (x, status, playerId) => {
+    const { data: sess } = await supabase.auth.getSession();
+    await supabase.from('hcp_submissions').update({ status, player_id: playerId ?? null, handled_by: sess.session?.user?.email, handled_at: new Date().toISOString() }).eq('id', x.id);
+  };
+
+  const apply = async (x) => {
+    setMsg('');
+    const gb = Number(x.golfbox_hcp);
+    const idx = hcpIndexUsed({ golfboxHcp: gb });
+    const targetId = choice[x.id] ?? matchFor(x)?.id ?? 'ny';
+    if (targetId === 'ny') {
+      const row = { name: x.name.trim(), trackman_name: x.trackman_name, gender: x.gender, golfbox_hcp: gb, index_no_golfbox: null, hcp_index: idx, contact: x.contact };
+      const { data: created, error } = await supabase.from('players').insert(row).select('id').single();
+      if (error) { setMsg(`Feil: ${error.message}`); return; }
+      await mark(x, 'brukt', created.id);
+      setMsg(`${x.name} er lagt til med indeks ${fmtIndex(idx)}.`);
+    } else {
+      const p = data.players.find((q) => q.id === Number(targetId));
+      const n = data.scores.filter((sc) => sc.player_id === p.id).length;
+      if (!window.confirm(`Oppdatere ${p.name} fra indeks ${fmtIndex(p.hcp_index)} til ${fmtIndex(idx)}?${n ? ` Det endrer resultatene i ${n} runde${n === 1 ? '' : 'r'} ${p.name} allerede har spilt.` : ''}`)) return;
+      const upd = { golfbox_hcp: gb, index_no_golfbox: null, hcp_index: idx };
+      if ('golfbox_verified' in p) upd.golfbox_verified = false;
+      const { error } = await supabase.from('players').update(upd).eq('id', p.id);
+      if (error) { setMsg(`Feil: ${error.message}`); return; }
+      await mark(x, 'brukt', p.id);
+      setMsg(`${p.name} er oppdatert til indeks ${fmtIndex(idx)}. Husk å sjekke Golfbox.`);
+    }
+    await load(); reload(); onChange?.();
+  };
+
+  const reject = async (x) => {
+    if (!window.confirm(`Avvise innmeldingen fra ${x.name}?`)) return;
+    await mark(x, 'avvist'); await load(); onChange?.();
+  };
+
+  return (
+    <section className="card stack gap10 hcp-inbox">
+      <strong className="t16">Innmeldt fra appen ({subs.length})</strong>
+      <span className="small muted">Spillere har meldt inn Golfbox-HCP i turneringsfanen. Sjekk i Golfbox før du tar det i bruk.</span>
+      {subs.map((x) => {
+        const m = matchFor(x);
+        const target = choice[x.id] ?? m?.id ?? 'ny';
+        const idx = hcpIndexUsed({ golfboxHcp: Number(x.golfbox_hcp) });
+        return (
+          <div key={x.id} className="list-item stack gap8">
+            <div className="stack gap2">
+              <strong className="t15">{x.name}</strong>
+              <span className="small muted">{x.gender === 'D' ? 'Dame' : 'Herre'} · Golfbox {fmtIndex(x.golfbox_hcp)} → indeks {fmtIndex(idx)}{x.trackman_name ? ` · Trackman: ${x.trackman_name}` : ''}{x.contact ? ` · ${x.contact}` : ''}</span>
+              <span className="small muted">{new Date(x.created_at).toLocaleString('nb-NO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <label className="field small-field">Gjelder spiller
+              <select className="select" value={target} onChange={(e) => setChoice({ ...choice, [x.id]: e.target.value })}>
+                <option value="ny">Ny spiller: {x.name}</option>
+                {data.players.map((p) => <option key={p.id} value={p.id}>{p.name} (indeks {fmtIndex(p.hcp_index)}){m?.id === p.id ? ' – samme navn' : ''}</option>)}
+              </select>
+            </label>
+            <div className="row gap8 wrap">
+              <button className="btn btn-primary btn-sm" onClick={() => apply(x)}>{target === 'ny' ? 'Legg til som ny spiller' : 'Oppdater handicap'}</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => reject(x)}>Avvis</button>
+            </div>
+          </div>
+        );
+      })}
+      {msg && <p className={msg.startsWith('Feil') ? 'error small' : 'success small'}>{msg}</p>}
+    </section>
+  );
+}
+
+function Players({ data, reload, onChange }) {
   const { checks, error: checksError } = useChecks();
   const hasVerifyCols = data.players.length === 0 ? !checksError : 'golfbox_verified' in data.players[0];
   const [editing, setEditing] = useState(null);
@@ -259,6 +353,7 @@ function Players({ data, reload }) {
 
   return (
     <div className="stack gap14">
+      <HcpSubmissions data={data} reload={reload} onChange={onChange} />
       <strong className="t16">{data.players.length} spillere</strong>
       {data.players.length > 0 && (
         <div className="card list">
@@ -442,9 +537,12 @@ function Ratings({ data, reload }) {
 }
 
 // ---------- Fane ----------
-export default function ResultsAdmin() {
+export default function ResultsAdmin({ onChange }) {
   const { data, loading, error, reload } = useResults({ admin: true });
   const [sub, setSub] = useState('score');
+  const [pending, setPending] = useState(0);
+  const refresh = () => { countHcpSubmissions().then(setPending); onChange?.(); };
+  useEffect(() => { countHcpSubmissions().then(setPending); }, []);
 
   if (loading && !data) return <p className="muted">Henter …</p>;
   if (error) {
@@ -460,11 +558,11 @@ export default function ResultsAdmin() {
     <div className="stack gap14">
       <div className="row gap8 wrap" role="group" aria-label="Resultater">
         {[['score', 'Registrer score'], ['spillere', 'Spillere'], ['kontroll', 'Handicapkontroll'], ['bane', 'Baneverdier']].map(([id, label]) => (
-          <button key={id} className={sub === id ? 'chip chip-on' : 'chip'} aria-pressed={sub === id} onClick={() => setSub(id)}>{label}</button>
+          <button key={id} className={sub === id ? 'chip chip-on' : 'chip'} aria-pressed={sub === id} onClick={() => setSub(id)}>{label}{id === 'spillere' && pending > 0 && <span className="count-badge">{pending}</span>}</button>
         ))}
       </div>
       {sub === 'score' && <ScoreEntry data={data} reload={reload} />}
-      {sub === 'spillere' && <Players data={data} reload={reload} />}
+      {sub === 'spillere' && <Players data={data} reload={reload} onChange={refresh} />}
       {sub === 'kontroll' && <HcpCheck data={data} />}
       {sub === 'bane' && <Ratings data={data} reload={reload} />}
     </div>

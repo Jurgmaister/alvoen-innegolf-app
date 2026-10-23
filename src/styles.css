@@ -331,3 +331,6 @@ button.round {
 .pre-wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
 .count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 6px; border-radius: 10px; background: #C2410C; color: #FFFFFF; font-size: 12px; font-weight: 700; }
 .contact-link { display: inline-flex; align-items: center; gap: 6px; }
+.self-start { align-self: flex-start; }
+.notice { align-items: flex-start; background: #FBF6EC; border: 1px solid #EBDDBF; border-radius: 12px; padding: 10px 12px; }
+.notice .tag { flex-shrink: 0; }

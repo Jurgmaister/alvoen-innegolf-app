@@ -6,6 +6,7 @@ import Topbar from '../components/Topbar.jsx';
 import { useQuery, fetchTournament } from '../data.js';
 import { useResults, fmtIndex, fmtSigned } from '../results.js';
 import { SETTINGS } from '../scoring.js';
+import HcpSubmit from './HcpSubmit.jsx';
 
 function Dots({ value }) {
   return (
@@ -15,12 +16,15 @@ function Dots({ value }) {
   );
 }
 
-function RoundResult({ result }) {
+function RoundResult({ result, provisional }) {
   const rows = result.rows.filter((x) => x.valid);
   if (!rows.length) return null;
   return (
     <div className="stack gap6">
-      <strong className="t14">Resultat ({rows.length} spillere)</strong>
+      <div className="row between center gap8">
+        <strong className="t14">{provisional ? 'Foreløpig resultat' : 'Resultat'} ({rows.length} spillere)</strong>
+        {provisional && <span className="tag tag-warn">Foreløpig</span>}
+      </div>
       <table className="res-table">
         <thead><tr><th>Pl.</th><th>Spiller</th><th>Brutto</th><th>HCP</th><th>Netto</th><th>Poeng</th></tr></thead>
         <tbody>
@@ -71,7 +75,7 @@ function RoundRow({ r, result }) {
             <div><dt>Tee damer</dt><dd>{r.women}</dd></div>
           </dl>
           <span className="small muted">Lengdene gjelder hele banen fra valgt tee.</span>
-          {hasResult && <RoundResult result={result} />}
+          {hasResult && <RoundResult result={result} provisional={st !== 'ferdig'} />}
         </div>
       )}
     </div>
@@ -113,16 +117,24 @@ function OrderOfMerit({ res }) {
   const xmas = [...table].filter((t) => t.beforeChristmas > 0).sort((a, b) => b.beforeChristmas - a.beforeChristmas || a.order - b.order).slice(0, 3);
   const top = shown.slice(0, SETTINGS.playoffSpots);
   const finalDone = ROUNDS.every((r) => roundStatus(r) === 'ferdig');
+  // Foreløpig så lenge en runde med registrerte resultater ikke er ferdig spilt.
+  const openRound = ROUNDS.find((r) => roundStatus(r) === 'pagar' && results[r.n]?.validCount > 0);
 
   return (
     <>
       <section className="stack gap10">
         <div className="row between baseline">
-          <h2 className="label">ORDER OF MERIT</h2>
-          {lastRound > 0 && <span className="small muted">Etter runde {lastRound}</span>}
+          <h2 className="label">LEADERBOARD / OOM</h2>
+          {lastRound > 0 && <span className="small muted">{openRound ? 'Foreløpig etter' : 'Etter'} runde {lastRound}</span>}
         </div>
+        {openRound && (
+          <div className="notice row gap10">
+            <span className="tag tag-warn">Foreløpig</span>
+            <span className="small">Runde {openRound.n} pågår til {formatDate(openRound.end)}. Plasseringene kan endre seg til runden er ferdig spilt.</span>
+          </div>
+        )}
         <div className="card list">
-          {shown.length === 0 && <p className="muted small pad12">Tabellen kommer etter første runde.</p>}
+          {shown.length === 0 && <p className="muted small pad12">Leaderboardet kommer når de første resultatene er registrert.</p>}
           {shown.map((t, i) => (
             <Fragment key={t.id}>
               <OomRow t={t} />
@@ -204,6 +216,8 @@ export default function Tournament() {
         </div>
         <Signup open={tour.signup_open} />
       </section>
+
+      <HcpSubmit />
 
       <section className="stack gap10">
         <div className="row between baseline">

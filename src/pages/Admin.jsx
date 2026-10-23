@@ -3,7 +3,7 @@ import Topbar from '../components/Topbar.jsx';
 import Icon from '../components/Icon.jsx';
 import KioskAdmin from './KioskAdmin.jsx';
 import StatsAdmin from './StatsAdmin.jsx';
-import ResultsAdmin from './ResultsAdmin.jsx';
+import ResultsAdmin, { countHcpSubmissions } from './ResultsAdmin.jsx';
 import Inbox, { countUnhandled } from './Inbox.jsx';
 import { supabase, callPush } from '../supabase.js';
 import { CATEGORIES, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
@@ -187,7 +187,7 @@ function TournamentAdmin() {
         <button className="btn btn-primary" onClick={saveInfo}>Lagre turneringsinfo</button>
       </section>
 
-      <p className="small muted">Order of Merit regnes nå ut automatisk fra scorene under fanen «Resultater».</p>
+      <p className="small muted">Leaderboard / OoM regnes nå ut automatisk fra scorene under fanen «Resultater».</p>
       {msg && <p className={msg.startsWith('Feil') ? 'error small' : 'success small'}>{msg}</p>}
     </div>
   );
@@ -288,7 +288,9 @@ export default function Admin({ initialTab }) {
   const [isAdmin, setIsAdmin] = useState(null);
   const [tab, setTab] = useState(TABS.some((t) => t.id === initialTab) ? initialTab : 'melding');
   const [unhandled, setUnhandled] = useState(0);
+  const [hcpPending, setHcpPending] = useState(0);
   const refreshUnhandled = () => countUnhandled().then(setUnhandled).catch(() => {});
+  const refreshHcp = () => countHcpSubmissions().then(setHcpPending).catch(() => {});
 
   // Varsel om ny kontaktmelding åpner #/admin/innboks.
   useEffect(() => { if (TABS.some((t) => t.id === initialTab)) setTab(initialTab); }, [initialTab]);
@@ -313,7 +315,7 @@ export default function Admin({ initialTab }) {
     supabase.rpc('is_admin').then(({ data }) => setIsAdmin(Boolean(data)));
   }, [session]);
 
-  useEffect(() => { if (isAdmin) refreshUnhandled(); }, [isAdmin, tab]);
+  useEffect(() => { if (isAdmin) { refreshUnhandled(); refreshHcp(); } }, [isAdmin, tab]);
 
   if (session === undefined) return <main className="page"><p className="muted">Laster …</p></main>;
   if (!session) return <Login />;
@@ -342,13 +344,13 @@ export default function Admin({ initialTab }) {
       <nav className="admin-tabs" aria-label="Adminmeny">
         {TABS.map((t) => (
           <button key={t.id} className={tab === t.id ? 'chip chip-solid' : 'chip'} aria-pressed={tab === t.id}
-            onClick={() => setTab(t.id)}>{t.label}{t.id === 'innboks' && unhandled > 0 && <span className="count-badge">{unhandled}</span>}</button>
+            onClick={() => setTab(t.id)}>{t.label}{t.id === 'innboks' && unhandled > 0 && <span className="count-badge">{unhandled}</span>}{t.id === 'resultater' && hcpPending > 0 && <span className="count-badge">{hcpPending}</span>}</button>
         ))}
       </nav>
 
       {tab === 'melding' && <SendMessage />}
       {tab === 'innboks' && <Inbox onChange={refreshUnhandled} />}
-      {tab === 'resultater' && <ResultsAdmin />}
+      {tab === 'resultater' && <ResultsAdmin onChange={refreshHcp} />}
       {tab === 'turnering' && <TournamentAdmin />}
       {tab === 'pameldte' && <Signups />}
       {tab === 'info' && <InfoAdmin />}
