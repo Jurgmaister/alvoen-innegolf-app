@@ -12,3 +12,6 @@ export const CATEGORIES = [
 export const categoryLabel = (id) => CATEGORIES.find((c) => c.id === id)?.label || id;
 
 export const isConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+// Infosidene («Slik bruker du simulatoren», «Adgang, kiosk og regler»). Sett til true for å vise dem igjen.
+export const SHOW_INFO_PAGES = false;

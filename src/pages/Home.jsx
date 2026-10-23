@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
-import { BOOKING_URL, categoryLabel } from '../config.js';
+import { BOOKING_URL, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchInfoPages, lastSeenMessageId, formatWhen } from '../data.js';
 import { isIos, isStandalone } from '../push.js';
 
@@ -49,7 +49,7 @@ function InstallHint() {
 export default function Home() {
   const messages = useQuery(fetchMessages(2), []);
   const tournament = useQuery(fetchTournament, []);
-  const pages = useQuery(fetchInfoPages, []);
+  const pages = useQuery(SHOW_INFO_PAGES ? fetchInfoPages : async () => ({ data: [] }), []);
   const seen = lastSeenMessageId();
   const hasUnread = (messages.data || []).some((m) => m.id > seen);
   const t = tournament.data;
@@ -110,7 +110,7 @@ export default function Home() {
         </div>
       </section>
 
-      {pages.data?.length > 0 && (
+      {SHOW_INFO_PAGES && pages.data?.length > 0 && (
         <section className="grid2">
           {pages.data.map((p) => (
             <a key={p.slug} href={`#/info/${p.slug}`} className="card tile">

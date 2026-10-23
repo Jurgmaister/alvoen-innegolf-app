@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { supabase, callPush } from '../supabase.js';
-import { CATEGORIES, categoryLabel } from '../config.js';
+import { CATEGORIES, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPages, formatWhen } from '../data.js';
 
 // ---------- Innlogging ----------
@@ -317,7 +317,7 @@ const TABS = [
   { id: 'melding', label: 'Send melding' },
   { id: 'turnering', label: 'Turnering' },
   { id: 'pameldte', label: 'Påmeldte' },
-  { id: 'info', label: 'Infosider' },
+  ...(SHOW_INFO_PAGES ? [{ id: 'info', label: 'Infosider' }] : []),
   { id: 'kiosk', label: 'Kiosk' },
 ];
 
