@@ -7,38 +7,25 @@ import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPage
 // ---------- Innlogging ----------
 function norskFeil(message = '') {
   const m = message.toLowerCase();
-  if (m.includes('only request this after')) {
-    const s = message.match(/(\d+)\s*second/);
-    return `Vent ${s ? s[1] : '30'} sekunder før du ber om en ny e-post.`;
-  }
-  if (m.includes('rate limit')) return 'For mange innloggings-e-poster på kort tid. Vent en time og prøv igjen.';
-  if (m.includes('expired') || m.includes('invalid')) return 'Innloggingslenken er brukt eller utløpt. Be om en ny.';
-  if (m.includes('signups not allowed') || m.includes('not allowed')) return 'Denne e-posten har ikke tilgang.';
+  if (m.includes('invalid login credentials')) return 'Feil e-post eller passord.';
+  if (m.includes('email not confirmed')) return 'Brukeren er ikke bekreftet ennå. Huk av «Auto Confirm User» når brukeren lages i Supabase.';
+  if (m.includes('rate limit') || m.includes('too many')) return 'For mange forsøk. Vent litt og prøv igjen.';
+  if (m.includes('failed to fetch') || m.includes('network')) return 'Får ikke kontakt med serveren. Sjekk nettet og prøv igjen.';
   return message || 'Noe gikk galt. Prøv igjen.';
 }
 
-// Feil fra en innloggingslenke (f.eks. utløpt) kommer i #-delen av adressen.
-function linkError() {
-  const params = new URLSearchParams(window.location.hash.replace(/^#/, ''));
-  const desc = params.get('error_description');
-  return desc ? norskFeil(desc.replace(/\+/g, ' ')) : '';
-}
-
-function Login({ initialError = '' }) {
+function Login() {
   const [email, setEmail] = useState('');
-  const [step, setStep] = useState('email');
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(initialError);
+  const [error, setError] = useState('');
 
-  const sendCode = async (e) => {
+  const login = async (e) => {
     e.preventDefault();
     setBusy(true); setError('');
-    const { error: err } = await supabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}/?admin` },
-    });
+    const { error: err } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
-    if (err) setError(norskFeil(err.message)); else setStep('code');
+    if (err) setError(norskFeil(err.message));
   };
 
   return (
@@ -46,19 +33,13 @@ function Login({ initialError = '' }) {
       <a href="#/" className="back-link"><Icon name="back" size={20} strokeWidth={2} /> Til appen</a>
       <span className="label">INTERNT</span>
       <h1 className="h1">Logg inn</h1>
-      {step === 'email' ? (
-        <form className="stack gap12" onSubmit={sendCode}>
-          <label className="field">E-post<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" /></label>
-          <button className="btn btn-primary btn-lg" disabled={busy}>{busy ? 'Sender …' : 'Send innloggingslenke'}</button>
-        </form>
-      ) : (
-        <div className="stack gap12">
-          <p className="body-text">Vi har sendt en e-post til {email}. Åpne den og trykk «Sign in», så kommer du rett inn på adminsiden.</p>
-          <p className="small muted">Kommer ikke e-posten? Sjekk søppelpost, eller vent et minutt og prøv igjen.</p>
-          <button type="button" className="btn btn-ghost" onClick={() => setStep('email')}>Prøv igjen eller bruk en annen e-post</button>
-        </div>
-      )}
+      <form className="stack gap12" onSubmit={login}>
+        <label className="field">E-post<input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="username" /></label>
+        <label className="field">Passord<input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label>
+        <button className="btn btn-primary btn-lg" disabled={busy}>{busy ? 'Logger inn …' : 'Logg inn'}</button>
+      </form>
       {error && <p className="error small">{error}</p>}
+      <p className="small muted">Glemt passordet? Jørgen kan sette nytt i Supabase.</p>
     </main>
   );
 }
@@ -341,7 +322,6 @@ export default function Admin() {
   const [session, setSession] = useState(undefined);
   const [isAdmin, setIsAdmin] = useState(null);
   const [tab, setTab] = useState('melding');
-  const [urlError] = useState(linkError);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -364,7 +344,7 @@ export default function Admin() {
   }, [session]);
 
   if (session === undefined) return <main className="page"><p className="muted">Laster …</p></main>;
-  if (!session) return <Login initialError={urlError} />;
+  if (!session) return <Login />;
   if (isAdmin === null) return <main className="page"><p className="muted">Sjekker tilgang …</p></main>;
 
   const logout = () => supabase.auth.signOut();

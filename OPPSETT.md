@@ -25,12 +25,17 @@ Du gjør steg 1–4 én gang. Regn med ca. 45 minutter. Ingen programmering tren
 
 ## 2. Innlogging for dere to
 
-1. **Authentication → URL Configuration**
-   - Site URL: `https://app.alvoeninnegolf.no`
-   - Redirect URLs: legg til `https://app.alvoeninnegolf.no/**`
-2. Supabase sender innloggings-e-post bare til medlemmer av organisasjonen. Inviter Erik:
-   **Organization settings → Team → Invite** med hans e-post. Han må godta invitasjonen.
-3. Innlogging på adminsiden skjer med lenken i e-posten («Sign in»). Den åpnes i nettleseren, og det holder.
+Adminsiden bruker e-post og passord.
+
+1. **Authentication → Users → Add user → Create new user**
+   - E-post og et passord du velger
+   - Huk av **Auto Confirm User**
+   - Gjør det samme for Erik (med hans e-post), og gi ham passordet.
+2. E-postene må også stå i `admins`-tabellen (steg 1, punkt 4).
+3. Anbefalt: **Authentication → Sign In / Providers** → slå av **Allow new users to sign up**.
+   Da kan ingen andre lage brukere. Brukere du lager selv i steg 1 virker fortsatt.
+
+Glemt passord: **Authentication → Users** → trykk på brukeren → sett nytt passord.
 
 ## 3. Push-funksjonen
 
