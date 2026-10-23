@@ -122,7 +122,7 @@ export default function Home() {
       )}
 
       <footer className="footer">
-        <a href="#/admin" className="small muted-link">For ansatte</a>
+        <a href="#/admin" className="small muted-link">Til admin-side</a>
       </footer>
     </main>
   );

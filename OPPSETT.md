@@ -80,7 +80,7 @@ Koden ligger i GitHub-prosjektet `Jurgmaister/alvoen-innegolf-app`. Hver gang ko
 1. Åpne `https://app.alvoeninnegolf.no` på mobilen.
 2. iPhone: **Del → Legg til på Hjem-skjerm**, åpne appen derfra. Android: trykk **Installer**.
 3. Gå til **Meldinger** og slå på push-varsler.
-4. Gå til `https://app.alvoeninnegolf.no/#/admin` (eller «For ansatte» nederst på forsiden), logg inn og send en testmelding.
+4. Gå til `https://app.alvoeninnegolf.no/#/admin` (eller «Til admin-side» nederst på forsiden), logg inn og send en testmelding.
 5. Under **Turnering** i admin fyller du inn neste runde. Under **Infosider** skriver du inn veiledning og regler.
 
 ---
