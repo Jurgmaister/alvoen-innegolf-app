@@ -6,7 +6,7 @@ const ID_KEY = 'alvoen.deviceId';
 const LAST_KEY = 'alvoen.lastTracked';
 const INTERVAL = 30 * 60 * 1000;
 
-function deviceId() {
+export function deviceId() {
   try {
     let id = localStorage.getItem(ID_KEY);
     if (!id) {

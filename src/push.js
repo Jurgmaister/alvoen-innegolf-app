@@ -39,7 +39,8 @@ export async function currentSubscription() {
   return reg.pushManager.getSubscription();
 }
 
-export async function enablePush(topics = savedTopics()) {
+// Ber om tillatelse og henter (eller lager) push-abonnementet for denne enheten.
+export async function getOrCreateSubscription() {
   if (!pushSupported()) throw new Error('Denne nettleseren støtter ikke push-varsler.');
   if (!VAPID_PUBLIC_KEY) throw new Error('Push er ikke satt opp ennå.');
   const permission = await Notification.requestPermission();
@@ -52,6 +53,11 @@ export async function enablePush(topics = savedTopics()) {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
     });
   }
+  return sub;
+}
+
+export async function enablePush(topics = savedTopics()) {
+  const sub = await getOrCreateSubscription();
   await callPush('subscribe', { subscription: sub.toJSON(), topics });
   storeTopics(topics);
   return sub;

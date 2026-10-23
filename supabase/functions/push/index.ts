@@ -5,6 +5,9 @@
 //   unsubscribe – fjerner et abonnement (åpen)
 //   send        – lagrer meldingen og sender push til alle som følger kategorien (kun admin)
 //   stats       – antall enheter med varsler på (kun admin)
+//   contact     – kunde sender melding via kontaktskjemaet; varsler admin (åpen, med sperre mot misbruk)
+//   admin-alerts – slår av/på varsel om nye kontaktmeldinger på en admin-enhet (kun admin)
+//   admin-alerts-status – om denne enheten får varsel (kun admin)
 //
 // Hemmeligheter (Edge Functions → Secrets):
 //   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (f.eks. mailto:post@alvoeninnegolf.no)
@@ -14,7 +17,10 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const CATEGORIES = ["turnering", "drift", "tilbud"];
+const CATEGORIES = ["turnering", "drift"];
+const CONTACT_TOPICS: Record<string, string> = {
+  sporsmal: "Spørsmål", feil: "Feil eller problem", turnering: "Turnering", annet: "Annet",
+};
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -201,6 +207,85 @@ async function handle(req: Request): Promise<Response> {
   if (action === "unsubscribe") {
     if (typeof payload.endpoint !== "string") return json({ error: "Mangler endpoint" }, 400);
     await supabase.from("push_subscriptions").delete().eq("endpoint", payload.endpoint);
+    return json({ ok: true });
+  }
+
+  if (action === "contact") {
+    // Honningkrukke: skjult felt som bare roboter fyller ut. Svar «ok» uten å lagre.
+    if (payload.website) return json({ ok: true });
+    const name = String(payload.name ?? "").trim().slice(0, 80);
+    const contact = String(payload.contact ?? "").trim().slice(0, 120);
+    const message = String(payload.message ?? "").trim().slice(0, 2000);
+    const topic = CONTACT_TOPICS[String(payload.topic)] ? String(payload.topic) : "annet";
+    const deviceId = typeof payload.deviceId === "string" ? payload.deviceId.slice(0, 64) : null;
+    if (!name || !message) return json({ error: "Skriv navn og melding." }, 400);
+
+    // Sperre: maks 5 meldinger per enhet per time og 30 totalt per 10 minutter.
+    const hourAgo = new Date(Date.now() - 3600_000).toISOString();
+    if (deviceId) {
+      const { count } = await supabase.from("contact_messages").select("id", { count: "exact", head: true })
+        .eq("device_id", deviceId).gte("created_at", hourAgo);
+      if ((count ?? 0) >= 5) return json({ error: "Du har sendt mange meldinger nå. Prøv igjen senere." }, 429);
+    }
+    const tenMinAgo = new Date(Date.now() - 600_000).toISOString();
+    const { count: recent } = await supabase.from("contact_messages").select("id", { count: "exact", head: true })
+      .gte("created_at", tenMinAgo);
+    if ((recent ?? 0) >= 30) return json({ error: "Mange meldinger akkurat nå. Prøv igjen om litt." }, 429);
+
+    const { data: row, error } = await supabase.from("contact_messages")
+      .insert({ name, contact, topic, message, device_id: deviceId }).select("id").single();
+    if (error) throw new Error(`Kunne ikke lagre meldingen: ${error.message}`);
+
+    // Varsel til admin-enheter. Feil her skal ikke stoppe kunden.
+    try {
+      const { data: subs } = await supabase.from("admin_push_subscriptions").select("endpoint, p256dh, auth");
+      if (subs?.length) {
+        const vapid = await getVapid();
+        const note = JSON.stringify({
+          title: `Ny melding fra ${name}`,
+          body: `${CONTACT_TOPICS[topic]}: ${message.length > 120 ? message.slice(0, 117) + "…" : message}`,
+          url: "/#/admin/innboks",
+          tag: `kontakt-${row.id}`,
+        });
+        const gone: string[] = [];
+        await Promise.all(subs.map(async (s) => {
+          try {
+            const res = await sendPush(s, note, vapid);
+            if (res.status === 404 || res.status === 410) gone.push(s.endpoint);
+          } catch (e) { console.error("Admin-varsel feilet:", e); }
+        }));
+        if (gone.length) await supabase.from("admin_push_subscriptions").delete().in("endpoint", gone);
+      }
+    } catch (e) {
+      console.error("Admin-varsel feilet:", e);
+    }
+    return json({ ok: true });
+  }
+
+  if (action === "admin-alerts" || action === "admin-alerts-status") {
+    const email = await requireAdmin(req, supabase);
+    if (!email) return json({ error: "Ikke innlogget som administrator" }, 401);
+    const sub = payload.subscription;
+    const endpoint = sub?.endpoint ?? payload.endpoint;
+    if (action === "admin-alerts-status") {
+      const { count } = await supabase.from("admin_push_subscriptions").select("endpoint", { count: "exact", head: true });
+      let here = false;
+      if (typeof endpoint === "string") {
+        const { data } = await supabase.from("admin_push_subscriptions").select("endpoint").eq("endpoint", endpoint).maybeSingle();
+        here = Boolean(data);
+      }
+      return json({ ok: true, here, total: count ?? 0 });
+    }
+    if (typeof endpoint !== "string" || !endpoint.startsWith("https://")) return json({ error: "Mangler abonnementsdata" }, 400);
+    if (payload.on) {
+      if (!sub?.keys?.p256dh || !sub?.keys?.auth) return json({ error: "Mangler abonnementsdata" }, 400);
+      const { error } = await supabase.from("admin_push_subscriptions").upsert({
+        endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, email,
+      });
+      if (error) throw new Error(`Kunne ikke lagre: ${error.message}`);
+    } else {
+      await supabase.from("admin_push_subscriptions").delete().eq("endpoint", endpoint);
+    }
     return json({ ok: true });
   }
 

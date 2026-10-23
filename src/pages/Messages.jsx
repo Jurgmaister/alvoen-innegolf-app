@@ -103,6 +103,7 @@ export default function Messages() {
       <Topbar />
       <h1 className="h1">Meldinger</h1>
       <PushCard />
+      <a href="#/kontakt" className="link small contact-link"><Icon name="mail" size={16} /> Vil du skrive til oss? Send en melding</a>
 
       <div className="row wrap gap8" role="group" aria-label="Filter">
         {[{ id: 'alle', label: 'Alle' }, ...CATEGORIES].map((c) => (

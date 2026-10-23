@@ -324,3 +324,10 @@ button.round {
 .big-check { font-size: 14px; color: var(--ink); }
 .select.tee-select { min-height: 38px; padding: 6px 10px; font-size: 13px; margin-top: 4px; }
 .tee-note { font-size: 12px; color: var(--muted); display: block; }
+
+/* Kontaktskjema og innboks */
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.field-hint { font-weight: 400; }
+.pre-wrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.count-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 6px; border-radius: 10px; background: #C2410C; color: #FFFFFF; font-size: 12px; font-weight: 700; }
+.contact-link { display: inline-flex; align-items: center; gap: 6px; }

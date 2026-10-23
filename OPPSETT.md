@@ -105,6 +105,16 @@ Koden ligger i GitHub-prosjektet `Jurgmaister/alvoen-innegolf-app`. Hver gang ko
 
 Beregningen følger regnearket «Vinterserie_2026-27_resultater_v4» (se `src/scoring.js`).
 
+## Kontaktskjema og innboks
+
+Kundene finner «Send oss en melding» på forsiden og på Meldinger-siden. Meldingene havner i fanen **Innboks** på adminsiden.
+
+1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/kontakt.sql` og trykk **Run**.
+2. **Edge Functions → push → Code**: erstatt koden med hele `supabase/functions/push/index.ts` og trykk **Deploy**. «Verify JWT» skal fortsatt være av.
+3. Adminsiden → **Innboks** → **Varsle meg om nye meldinger → Slå på**. Gjør det på hver telefon som skal få varsel (på iPhone fra appen på hjemskjermen).
+
+Svar kunden med knappene for e-post, SMS eller telefon, og trykk **Marker som behandlet**. Skjemaet har sperre mot spam: maks 5 meldinger per enhet i timen.
+
 ## Statistikk
 
 1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/statistikk.sql` og trykk **Run**.

@@ -112,6 +112,18 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="stack gap10">
+        <h2 className="label">KONTAKT OSS</h2>
+        <a href="#/kontakt" className="card card-link">
+          <div className="date-chip"><Icon name="mail" color="#284659" /></div>
+          <div className="grow stack gap3">
+            <strong className="t16">Send oss en melding</strong>
+            <span className="small muted">Spørsmål, feil eller noe annet</span>
+          </div>
+          <Icon name="chevron" color="#5B6B75" size={20} strokeWidth={2} />
+        </a>
+      </section>
+
       {SHOW_INFO_PAGES && pages.data?.length > 0 && (
         <section className="grid2">
           {pages.data.map((p) => (

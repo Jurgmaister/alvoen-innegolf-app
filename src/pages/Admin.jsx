@@ -4,6 +4,7 @@ import Icon from '../components/Icon.jsx';
 import KioskAdmin from './KioskAdmin.jsx';
 import StatsAdmin from './StatsAdmin.jsx';
 import ResultsAdmin from './ResultsAdmin.jsx';
+import Inbox, { countUnhandled } from './Inbox.jsx';
 import { supabase, callPush } from '../supabase.js';
 import { CATEGORIES, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPages, formatWhen } from '../data.js';
@@ -274,6 +275,7 @@ function InfoAdmin() {
 // ---------- Admin-skall ----------
 const TABS = [
   { id: 'melding', label: 'Send melding' },
+  { id: 'innboks', label: 'Innboks' },
   { id: 'resultater', label: 'Resultater' },
   { id: 'turnering', label: 'Turnering' },
   ...(SHOW_INFO_PAGES ? [{ id: 'info', label: 'Infosider' }] : []),
@@ -281,10 +283,15 @@ const TABS = [
   { id: 'statistikk', label: 'Statistikk' },
 ];
 
-export default function Admin() {
+export default function Admin({ initialTab }) {
   const [session, setSession] = useState(undefined);
   const [isAdmin, setIsAdmin] = useState(null);
-  const [tab, setTab] = useState('melding');
+  const [tab, setTab] = useState(TABS.some((t) => t.id === initialTab) ? initialTab : 'melding');
+  const [unhandled, setUnhandled] = useState(0);
+  const refreshUnhandled = () => countUnhandled().then(setUnhandled).catch(() => {});
+
+  // Varsel om ny kontaktmelding åpner #/admin/innboks.
+  useEffect(() => { if (TABS.some((t) => t.id === initialTab)) setTab(initialTab); }, [initialTab]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -297,7 +304,7 @@ export default function Admin() {
     if (session === undefined) return;
     const hash = window.location.hash;
     if (window.location.search || hash.startsWith('#error') || hash.startsWith('#access_token')) {
-      window.history.replaceState(null, '', `${window.location.pathname}#/admin`);
+      window.history.replaceState(null, '', `${window.location.pathname}#/admin${initialTab ? `/${initialTab}` : ''}`);
     }
   }, [session]);
 
@@ -305,6 +312,8 @@ export default function Admin() {
     if (!session) { setIsAdmin(null); return; }
     supabase.rpc('is_admin').then(({ data }) => setIsAdmin(Boolean(data)));
   }, [session]);
+
+  useEffect(() => { if (isAdmin) refreshUnhandled(); }, [isAdmin, tab]);
 
   if (session === undefined) return <main className="page"><p className="muted">Laster …</p></main>;
   if (!session) return <Login />;
@@ -333,11 +342,12 @@ export default function Admin() {
       <nav className="admin-tabs" aria-label="Adminmeny">
         {TABS.map((t) => (
           <button key={t.id} className={tab === t.id ? 'chip chip-solid' : 'chip'} aria-pressed={tab === t.id}
-            onClick={() => setTab(t.id)}>{t.label}</button>
+            onClick={() => setTab(t.id)}>{t.label}{t.id === 'innboks' && unhandled > 0 && <span className="count-badge">{unhandled}</span>}</button>
         ))}
       </nav>
 
       {tab === 'melding' && <SendMessage />}
+      {tab === 'innboks' && <Inbox onChange={refreshUnhandled} />}
       {tab === 'resultater' && <ResultsAdmin />}
       {tab === 'turnering' && <TournamentAdmin />}
       {tab === 'pameldte' && <Signups />}

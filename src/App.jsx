@@ -5,6 +5,7 @@ import Messages from './pages/Messages.jsx';
 import Tournament from './pages/Tournament.jsx';
 import InfoPage from './pages/InfoPage.jsx';
 import Admin from './pages/Admin.jsx';
+import Contact from './pages/Contact.jsx';
 import TabBar from './components/TabBar.jsx';
 
 function parseRoute() {
@@ -43,7 +44,8 @@ export default function App() {
   if (section === 'meldinger') page = <Messages />;
   else if (section === 'turnering') page = <Tournament />;
   else if (section === 'info' && param) page = <InfoPage slug={param} />;
-  else if (isAdmin) page = <Admin />;
+  else if (section === 'kontakt') page = <Contact />;
+  else if (isAdmin) page = <Admin initialTab={param} />;
   else page = <Home />;
 
   return (
