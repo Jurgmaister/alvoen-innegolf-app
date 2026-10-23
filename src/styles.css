@@ -249,5 +249,5 @@ input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visib
 .stat { display: flex; flex-direction: column; gap: 4px; }
 .stat-value { font-size: 32px; font-weight: 600; line-height: 1.1; color: var(--navy); }
 .stat-label { font-size: 14px; font-weight: 500; }
-.week-label { width: 104px; flex-shrink: 0; }
+.week-label { width: 84px; flex-shrink: 0; }
 .week-n { width: 28px; text-align: right; }

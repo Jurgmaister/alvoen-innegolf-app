@@ -5,6 +5,16 @@ const PLATFORM_LABELS = { ios: 'iPhone/iPad', android: 'Android', pc: 'PC/Mac', 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'mai', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'des'];
 const short = (iso) => { const d = new Date(iso); return `${d.getDate()}. ${MONTHS[d.getMonth()]}`; };
 
+// Ukenummer etter ISO 8601 (norsk standard) for en dato «YYYY-MM-DD».
+export function isoWeek(dateStr) {
+  const [y, m, d] = dateStr.slice(0, 10).split('-').map(Number);
+  const t = new Date(Date.UTC(y, m - 1, d));
+  const dayNum = t.getUTCDay() || 7;
+  t.setUTCDate(t.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
+  return Math.ceil(((t - yearStart) / 86400000 + 1) / 7);
+}
+
 function Stat({ value, label, hint }) {
   return (
     <div className="card stat">
@@ -53,9 +63,9 @@ export default function StatsAdmin() {
       <section className="stack gap10">
         <h2 className="label">NYE ENHETER PER UKE</h2>
         <div className="card stack gap8">
-          {weeks.map((w) => (
+          {weeks.map((w, i) => (
             <div key={w.week} className="row center gap12">
-              <span className="small muted week-label">Uke fra {short(w.week)}</span>
+              <span className="small muted week-label">Uke {isoWeek(w.week)}{i === weeks.length - 1 ? ' (nå)' : ''}</span>
               <span className="bar grow"><span className="bar-fill" style={{ width: `${(w.n / maxWeek) * 100}%` }} /></span>
               <strong className="t14 week-n">{w.n}</strong>
             </div>
