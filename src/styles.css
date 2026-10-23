@@ -270,3 +270,39 @@ button.round {
 .dot-on { background: var(--navy); }
 .dot-off { background: var(--line); }
 @media (max-width: 360px) { .round-info { padding-left: 0; } }
+
+/* Resultater (admin) */
+.select {
+  min-height: 48px; border-radius: 12px; border: 1px solid var(--border); background: var(--card);
+  padding: 10px 12px; font: 400 15px var(--body); color: var(--ink); width: 100%;
+}
+.score-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.score-row:last-child { border-bottom: 0; }
+.input.gross { width: 84px; text-align: center; font-weight: 600; }
+.tiny-check { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); min-height: 28px; }
+.tiny-check input { width: 18px; height: 18px; accent-color: var(--navy); }
+.warn { background: #F3EAD8; color: #6E5320; border-radius: 12px; padding: 12px 14px; font-size: 14px; }
+.tag-warn { background: #F3EAD8; color: #6E5320; }
+.locked { background: var(--ground); }
+.plain-btn { background: none; border: 0; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.ratings-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+@media (min-width: 520px) { .ratings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; } .ratings-grid > span { order: 0; } }
+.small-field { font-size: 12px; font-weight: 500; }
+.small-field input { min-height: 40px; padding: 6px 10px; font-size: 15px; }
+
+/* Resultater (turnering) */
+.res-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.res-table th { font-size: 11px; font-weight: 600; color: var(--muted); text-align: right; padding: 6px 4px; letter-spacing: 0.04em; }
+.res-table th:first-child, .res-table th:nth-child(2) { text-align: left; }
+.res-table td { padding: 8px 4px; border-top: 1px solid var(--line); text-align: right; }
+.res-table td:nth-child(2) { text-align: left; }
+.res-table td:first-child { text-align: left; width: 32px; }
+.res-table .muted-row td { color: var(--muted); }
+.oom-row { width: 100%; }
+.oom-detail { padding: 0 0 12px 40px; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-pt { font-size: 12px; padding: 4px 8px; border-radius: 8px; background: var(--ground); color: var(--navy); }
+.chip-pt.dropped { text-decoration: line-through; color: var(--muted); }
+.bracket { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.bracket .card { padding: 12px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.oom-row { border-bottom: 0; padding: 11px 0; }

@@ -3,9 +3,9 @@ import Icon from '../components/Icon.jsx';
 import { TOURNAMENT_SIGNUP_URL } from '../config.js';
 import { ROUNDS, ROUND_SETTINGS, FINAL, roundStatus, currentRound, formatRange, formatDate } from '../rounds.js';
 import Topbar from '../components/Topbar.jsx';
-import { useQuery, fetchTournament, fetchStandings } from '../data.js';
-
-const PLAYOFF_SPOTS = 4;
+import { useQuery, fetchTournament } from '../data.js';
+import { useResults, fmtIndex, fmtSigned } from '../results.js';
+import { SETTINGS } from '../scoring.js';
 
 function Dots({ value }) {
   return (
@@ -15,9 +15,36 @@ function Dots({ value }) {
   );
 }
 
-function RoundRow({ r }) {
+function RoundResult({ result }) {
+  const rows = result.rows.filter((x) => x.valid);
+  if (!rows.length) return null;
+  return (
+    <div className="stack gap6">
+      <strong className="t14">Resultat ({rows.length} spillere)</strong>
+      <table className="res-table">
+        <thead><tr><th>Pl.</th><th>Spiller</th><th>Brutto</th><th>HCP</th><th>Netto</th><th>Poeng</th></tr></thead>
+        <tbody>
+          {rows.map((x) => (
+            <tr key={x.player_id}>
+              <td>{x.ties > 1 ? `T${x.place}` : x.place}</td>
+              <td>{x.name}</td>
+              <td>{x.gross}</td>
+              <td>{fmtSigned(x.ph)}</td>
+              <td className="strong">{x.net}</td>
+              <td className="strong">{x.points}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <span className="small muted">HCP = playing handicap for runden (fra 50 % av Golfbox-indeks, slope og CR). T = delt plass.</span>
+    </div>
+  );
+}
+
+function RoundRow({ r, result }) {
   const st = roundStatus(r);
   const [open, setOpen] = useState(st === 'pagar');
+  const hasResult = result && result.validCount > 0;
   const cls = ['round-item', st === 'ferdig' && 'round-done', st === 'pagar' && 'round-now', open && 'round-open'].filter(Boolean).join(' ');
   return (
     <div className={cls}>
@@ -28,7 +55,8 @@ function RoundRow({ r }) {
           <span className="small muted">{formatRange(r)}</span>
         </span>
         {st === 'pagar' && <span className="tag tag-turnering">Pågår</span>}
-        {st === 'ferdig' && <span className="small muted">Ferdig</span>}
+        {st === 'ferdig' && <span className="small muted">{hasResult ? 'Resultat' : 'Ferdig'}</span>}
+        {st === 'pagar' && hasResult && <span className="sr-only">Foreløpig resultat</span>}
         <span className="chev" aria-hidden="true"><Icon name="chevron" size={18} strokeWidth={2} /></span>
       </button>
       {open && (
@@ -43,9 +71,97 @@ function RoundRow({ r }) {
             <div><dt>Tee damer</dt><dd>{r.women}</dd></div>
           </dl>
           <span className="small muted">Lengdene gjelder hele banen fra valgt tee.</span>
+          {hasResult && <RoundResult result={result} />}
         </div>
       )}
     </div>
+  );
+}
+
+function OomRow({ t }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="round-item">
+      <button className="standing plain-btn oom-row" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className={t.qualified ? 'pos pos-top' : 'pos'}>{t.place}</span>
+        <span className="grow stack gap2">
+          <span className="t15 medium">{t.name}</span>
+          <span className="small muted">{t.played} runde{t.played === 1 ? '' : 'r'}{t.wins ? ` · ${t.wins} seier${t.wins === 1 ? '' : 'e'}` : ''}</span>
+        </span>
+        <span className="t15 strong">{t.counting}</span>
+      </button>
+      {open && (
+        <div className="oom-detail">
+          {ROUNDS.filter((r) => t.perRound[r.n] !== undefined).map((r) => (
+            <span key={r.n} className={t.droppedRounds.includes(r.n) ? 'chip-pt dropped' : 'chip-pt'}>R{r.n}: {t.perRound[r.n]}</span>
+          ))}
+          <span className="small muted" style={{ width: '100%' }}>
+            Indeks {fmtIndex(t.player.hcp_index)} · totalt {t.total} p{t.droppedRounds.length ? ` · ${t.droppedRounds.length} strøket (gjennomstreket)` : ''}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrderOfMerit({ res }) {
+  if (res.loading) return <p className="muted small">Henter resultater …</p>;
+  if (res.error || !res.data) return null;
+  const { table, results } = res.data;
+  const shown = table.filter((t) => t.played > 0);
+  const lastRound = Math.max(0, ...ROUNDS.filter((r) => results[r.n]?.validCount > 0).map((r) => r.n));
+  const xmas = [...table].filter((t) => t.beforeChristmas > 0).sort((a, b) => b.beforeChristmas - a.beforeChristmas || a.order - b.order).slice(0, 3);
+  const top = shown.slice(0, SETTINGS.playoffSpots);
+  const finalDone = ROUNDS.every((r) => roundStatus(r) === 'ferdig');
+
+  return (
+    <>
+      <section className="stack gap10">
+        <div className="row between baseline">
+          <h2 className="label">ORDER OF MERIT</h2>
+          {lastRound > 0 && <span className="small muted">Etter runde {lastRound}</span>}
+        </div>
+        <div className="card list">
+          {shown.length === 0 && <p className="muted small pad12">Tabellen kommer etter første runde.</p>}
+          {shown.map((t, i) => (
+            <Fragment key={t.id}>
+              <OomRow t={t} />
+              {t.place === SETTINGS.playoffSpots && shown[i + 1] && <div className="cutline"><span />SLUTTSPILL<span /></div>}
+            </Fragment>
+          ))}
+        </div>
+        {shown.length > 0 && <span className="small muted">Poeng fra de {SETTINGS.countingRounds} beste rundene teller. Likt: flest seire, deretter beste runde. Trykk på en spiller for poeng per runde.</span>}
+      </section>
+
+      {top.length === SETTINGS.playoffSpots && (
+        <section className="stack gap10">
+          <div className="row between baseline">
+            <h2 className="label">SLUTTSPILL</h2>
+            <span className="small muted">{finalDone ? formatDate(FINAL.date) : 'Foreløpig oppsett'}</span>
+          </div>
+          <div className="bracket">
+            <div className="card stack gap4"><span className="small muted">Semifinale 1</span><strong className="t14">{top[0].name}</strong><span className="small muted">mot</span><strong className="t14">{top[3].name}</strong></div>
+            <div className="card stack gap4"><span className="small muted">Semifinale 2</span><strong className="t14">{top[1].name}</strong><span className="small muted">mot</span><strong className="t14">{top[2].name}</strong></div>
+          </div>
+          <span className="small muted">Matchplay {formatDate(FINAL.date)}. Vinnerne møtes i finalen, taperne i bronsefinalen.</span>
+        </section>
+      )}
+
+      {xmas.length > 0 && (
+        <section className="stack gap10">
+          <h2 className="label">FØR JUL (R1–R5)</h2>
+          <div className="card list">
+            {xmas.map((t, i) => (
+              <div key={t.id} className="standing">
+                <span className="pos">{i + 1}</span>
+                <span className="grow t15 medium">{t.name}</span>
+                <span className="t15 strong">{t.beforeChristmas}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
   );
 }
 
@@ -63,7 +179,7 @@ function Signup({ open }) {
 
 export default function Tournament() {
   const t = useQuery(fetchTournament, []);
-  const s = useQuery(fetchStandings, []);
+  const res = useResults();
   const tour = t.data;
   const cur = currentRound();
 
@@ -92,10 +208,10 @@ export default function Tournament() {
       <section className="stack gap10">
         <div className="row between baseline">
           <h2 className="label">RUNDER</h2>
-          <span className="small muted">Trykk for baneinfo</span>
+          <span className="small muted">Trykk for baneinfo og resultat</span>
         </div>
         <div className="card list">
-          {ROUNDS.map((r) => <RoundRow key={r.n} r={r} />)}
+          {ROUNDS.map((r) => <RoundRow key={r.n} r={r} result={res.data?.results[r.n]} />)}
           <div className="round">
             <span className="round-n round-final" aria-hidden="true"><Icon name="trophy" size={16} strokeWidth={2} /></span>
             <div className="grow stack gap2">
@@ -112,28 +228,7 @@ export default function Tournament() {
         </div>
       </section>
 
-      <section className="stack gap10">
-        <div className="row between baseline">
-          <h2 className="label">ORDER OF MERIT</h2>
-          {tour.standings_after && <span className="small muted">{tour.standings_after}</span>}
-        </div>
-        <div className="card list">
-          {s.loading && <p className="muted small pad12">Henter tabell …</p>}
-          {s.data?.length === 0 && <p className="muted small pad12">Tabellen kommer etter første runde.</p>}
-          {s.data?.map((r, i) => (
-            <Fragment key={r.id}>
-              <div className="standing">
-                <span className={r.position <= PLAYOFF_SPOTS ? 'pos pos-top' : 'pos'}>{r.position}</span>
-                <span className="grow t15 medium">{r.name}</span>
-                <span className="t15 strong">{r.points}</span>
-              </div>
-              {r.position === PLAYOFF_SPOTS && s.data[i + 1] && (
-                <div className="cutline"><span />SLUTTSPILL<span /></div>
-              )}
-            </Fragment>
-          ))}
-        </div>
-      </section>
+      <OrderOfMerit res={res} />
 
       {tour.rules && (
         <section className="stack gap10">

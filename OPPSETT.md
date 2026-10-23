@@ -92,6 +92,15 @@ Koden ligger i GitHub-prosjektet `Jurgmaister/alvoen-innegolf-app`. Hver gang ko
 3. Trykk **−** når noe er tatt ut, og **+** ved påfylling. Trykk på en vare for å endre den.
 4. Varer under minimum havner på handlelisten, som kan deles med **Del handleliste**.
 
+## Resultater (vinterserien)
+
+1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/resultater.sql` og trykk **Run**.
+2. Adminsiden → **Resultater → Spillere**: legg inn hver spiller med kjønn og Golfbox-indeks. HCP-indeksen (50 %) låses ved påmelding.
+3. **Baneverdier**: kontroller par, CR og slope per runde. Runde 3, 5, 7 og 9 mangler og må fylles inn.
+4. **Registrer score**: velg runde, skriv brutto slag og trykk Lagre. Plass, poeng og Order of Merit oppdateres i turneringsfanen med en gang.
+
+Beregningen følger regnearket «Vinterserie_2026-27_resultater_v4» (se `src/scoring.js`).
+
 ## Statistikk
 
 1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/statistikk.sql` og trykk **Run**.
@@ -102,7 +111,8 @@ Tellingen er anonym (et tilfeldig nummer per enhet, ingen navn eller kontaktinfo
 ## Daglig bruk (admin)
 
 - **Send melding**: velg kategori (Turnering, Drift, Tilbud), skriv tittel og tekst og send. Kundene som har valgt kategorien får push. Alle ser meldingen i appen.
-- **Turnering**: oppdater neste runde og Order of Merit etter hver runde (fra regnearket deres).
+- **Resultater**: registrer brutto slag etter hver runde; Order of Merit regnes ut automatisk.
+- **Turnering**: turneringsinfo, regler og om påmeldingen er åpen.
 - **Påmeldte**: se alle påmeldte med låst indeks, last ned til Excel.
 - **Kiosk**: tell varer, se hva som er under minimum og del handlelisten.
 

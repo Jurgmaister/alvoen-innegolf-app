@@ -3,6 +3,7 @@ import Topbar from '../components/Topbar.jsx';
 import Icon from '../components/Icon.jsx';
 import KioskAdmin from './KioskAdmin.jsx';
 import StatsAdmin from './StatsAdmin.jsx';
+import ResultsAdmin from './ResultsAdmin.jsx';
 import { supabase, callPush } from '../supabase.js';
 import { CATEGORIES, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPages, formatWhen } from '../data.js';
@@ -147,19 +148,15 @@ function SendMessage() {
 const TOUR_FIELDS = [
   ['title', 'Navn på turneringen'],
   ['summary', 'Kort beskrivelse', 'textarea'],
-  ['standings_after', 'Tabelltekst (f.eks. «Etter runde 2»)'],
   ['rules', 'Regler', 'textarea'],
 ];
 
 function TournamentAdmin() {
   const t = useQuery(fetchTournament, []);
-  const s = useQuery(fetchStandings, []);
   const [form, setForm] = useState(null);
-  const [rows, setRows] = useState([]);
   const [msg, setMsg] = useState('');
 
   useEffect(() => { if (t.data) setForm(t.data); }, [t.data]);
-  useEffect(() => { if (s.data) setRows(s.data.map((r) => ({ name: r.name, points: r.points }))); }, [s.data]);
 
   if (!form) return <p className="muted">Henter …</p>;
 
@@ -168,28 +165,6 @@ function TournamentAdmin() {
     const { id, ...fields } = form;
     const { error } = await supabase.from('tournament').update(fields).eq('id', 1);
     setMsg(error ? `Feil: ${error.message}` : 'Turneringsinfo lagret.');
-  };
-
-  const saveTable = async () => {
-    setMsg('');
-    const clean = rows.filter((r) => r.name.trim()).map((r, i) => ({ position: i + 1, name: r.name.trim(), points: r.points.trim() }));
-    const del = await supabase.from('standings').delete().gte('id', 0);
-    if (del.error) { setMsg(`Feil: ${del.error.message}`); return; }
-    if (clean.length) {
-      const { error } = await supabase.from('standings').insert(clean);
-      if (error) { setMsg(`Feil: ${error.message}`); return; }
-    }
-    setMsg('Tabellen er lagret.');
-    s.reload();
-  };
-
-  const setRow = (i, k, v) => setRows(rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)));
-  const move = (i, d) => {
-    const j = i + d;
-    if (j < 0 || j >= rows.length) return;
-    const next = [...rows];
-    [next[i], next[j]] = [next[j], next[i]];
-    setRows(next);
   };
 
   return (
@@ -211,23 +186,7 @@ function TournamentAdmin() {
         <button className="btn btn-primary" onClick={saveInfo}>Lagre turneringsinfo</button>
       </section>
 
-      <section className="stack gap12">
-        <h2 className="label">ORDER OF MERIT</h2>
-        <p className="small muted">Skriv inn i rekkefølge fra førsteplass. Poeng føres fra regnearket deres.</p>
-        {rows.map((r, i) => (
-          <div key={i} className="row gap8 center">
-            <span className={i < 4 ? 'pos pos-top' : 'pos'}>{i + 1}</span>
-            <input className="input grow" aria-label={`Navn plass ${i + 1}`} value={r.name} onChange={(e) => setRow(i, 'name', e.target.value)} placeholder="Navn" />
-            <input className="input w80" aria-label={`Poeng plass ${i + 1}`} value={r.points} onChange={(e) => setRow(i, 'points', e.target.value)} placeholder="Poeng" />
-            <button className="icon-btn sm" aria-label="Flytt opp" onClick={() => move(i, -1)}>↑</button>
-            <button className="icon-btn sm" aria-label="Fjern rad" onClick={() => setRows(rows.filter((_, j) => j !== i))}><Icon name="trash" size={18} /></button>
-          </div>
-        ))}
-        <div className="row gap8">
-          <button className="btn btn-ghost" onClick={() => setRows([...rows, { name: '', points: '' }])}><Icon name="plus" size={18} /> Legg til spiller</button>
-          <button className="btn btn-primary grow" onClick={saveTable}>Lagre tabell</button>
-        </div>
-      </section>
+      <p className="small muted">Order of Merit regnes nå ut automatisk fra scorene under fanen «Resultater».</p>
       {msg && <p className={msg.startsWith('Feil') ? 'error small' : 'success small'}>{msg}</p>}
     </div>
   );
@@ -315,6 +274,7 @@ function InfoAdmin() {
 // ---------- Admin-skall ----------
 const TABS = [
   { id: 'melding', label: 'Send melding' },
+  { id: 'resultater', label: 'Resultater' },
   { id: 'turnering', label: 'Turnering' },
   ...(SHOW_INFO_PAGES ? [{ id: 'info', label: 'Infosider' }] : []),
   { id: 'kiosk', label: 'Kiosk' },
@@ -378,6 +338,7 @@ export default function Admin() {
       </nav>
 
       {tab === 'melding' && <SendMessage />}
+      {tab === 'resultater' && <ResultsAdmin />}
       {tab === 'turnering' && <TournamentAdmin />}
       {tab === 'pameldte' && <Signups />}
       {tab === 'info' && <InfoAdmin />}
