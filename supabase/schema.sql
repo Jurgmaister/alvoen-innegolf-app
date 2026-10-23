@@ -46,7 +46,7 @@ create table if not exists public.push_subscriptions (
 create table if not exists public.tournament (
   id int primary key default 1 check (id = 1),
   title text not null default 'Vinterserien 2026/27',
-  summary text not null default '10 runder, 7 tellende. Topp 4 går til sluttspill i matchplay søndag 11.04.2027.',
+  summary text not null default '10 runder, 7 tellende. Topp 4 går til sluttspill i matchplay søndag 04.04.2027.',
   next_round_title text not null default 'Runde 1',
   next_round_course text not null default '',
   next_round_dates text not null default '',

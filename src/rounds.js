@@ -73,7 +73,7 @@ export const ROUND_SETTINGS = [
   ['Greenhastighet', 'Stimp 10'],
 ];
 
-export const FINAL = { title: 'Sluttspill matchplay (topp 4)', date: '2027-04-11' };
+export const FINAL = { title: 'Sluttspill matchplay (topp 4)', date: '2027-04-04' };
 
 const day = (iso) => new Date(`${iso}T00:00:00`);
 const todayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
