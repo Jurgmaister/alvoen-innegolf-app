@@ -1,11 +1,53 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import Icon from '../components/Icon.jsx';
 import { TOURNAMENT_SIGNUP_URL } from '../config.js';
-import { ROUNDS, FINAL, roundStatus, currentRound, formatRange, formatDate } from '../rounds.js';
+import { ROUNDS, ROUND_SETTINGS, FINAL, roundStatus, currentRound, formatRange, formatDate } from '../rounds.js';
 import Topbar from '../components/Topbar.jsx';
 import { useQuery, fetchTournament, fetchStandings } from '../data.js';
 
 const PLAYOFF_SPOTS = 4;
+
+function Dots({ value }) {
+  return (
+    <span className="dots" role="img" aria-label={`Vanskelighetsgrad ${value} av 5`}>
+      {[1, 2, 3, 4, 5].map((i) => <span key={i} className={i <= value ? 'dot-on' : 'dot-off'} />)}
+    </span>
+  );
+}
+
+function RoundRow({ r }) {
+  const st = roundStatus(r);
+  const [open, setOpen] = useState(st === 'pagar');
+  const cls = ['round-item', st === 'ferdig' && 'round-done', st === 'pagar' && 'round-now', open && 'round-open'].filter(Boolean).join(' ');
+  return (
+    <div className={cls}>
+      <button className="round" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className="round-n">R{r.n}</span>
+        <span className="grow stack gap2">
+          <span className="t15 medium">{r.course}</span>
+          <span className="small muted">{formatRange(r)}</span>
+        </span>
+        {st === 'pagar' && <span className="tag tag-turnering">Pågår</span>}
+        {st === 'ferdig' && <span className="small muted">Ferdig</span>}
+        <span className="chev" aria-hidden="true"><Icon name="chevron" size={18} strokeWidth={2} /></span>
+      </button>
+      {open && (
+        <div className="round-info stack gap10">
+          <p className="body-text">{r.about}</p>
+          <dl className="facts">
+            <div><dt>Sted</dt><dd>{r.place}</dd></div>
+            <div><dt>Hull som spilles</dt><dd>{r.holes}</dd></div>
+            <div><dt>Par (18 hull)</dt><dd>{r.par}</dd></div>
+            <div><dt>Vanskelighet</dt><dd><Dots value={r.difficulty} /></dd></div>
+            <div><dt>Tee herrer</dt><dd>{r.men}</dd></div>
+            <div><dt>Tee damer</dt><dd>{r.women}</dd></div>
+          </dl>
+          <span className="small muted">Lengdene gjelder hele banen fra valgt tee.</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Signup({ open }) {
   if (!open) return <p className="hero-note left">Påmeldingen er stengt.</p>;
@@ -48,22 +90,12 @@ export default function Tournament() {
       </section>
 
       <section className="stack gap10">
-        <h2 className="label">RUNDER</h2>
+        <div className="row between baseline">
+          <h2 className="label">RUNDER</h2>
+          <span className="small muted">Trykk for baneinfo</span>
+        </div>
         <div className="card list">
-          {ROUNDS.map((r) => {
-            const st = roundStatus(r);
-            return (
-              <div key={r.n} className={st === 'ferdig' ? 'round round-done' : st === 'pagar' ? 'round round-now' : 'round'}>
-                <span className="round-n">R{r.n}</span>
-                <div className="grow stack gap2">
-                  <span className="t15 medium">{r.course}</span>
-                  <span className="small muted">{formatRange(r)}</span>
-                </div>
-                {st === 'pagar' && <span className="tag tag-turnering">Pågår</span>}
-                {st === 'ferdig' && <span className="small muted">Ferdig</span>}
-              </div>
-            );
-          })}
+          {ROUNDS.map((r) => <RoundRow key={r.n} r={r} />)}
           <div className="round">
             <span className="round-n round-final" aria-hidden="true"><Icon name="trophy" size={16} strokeWidth={2} /></span>
             <div className="grow stack gap2">
@@ -71,6 +103,12 @@ export default function Tournament() {
               <span className="small muted">{formatDate(FINAL.date)}</span>
             </div>
           </div>
+        </div>
+        <div className="card stack gap6">
+          <strong className="t14">Likt for alle runder</strong>
+          {ROUND_SETTINGS.map(([k, v]) => (
+            <div key={k} className="row between gap12 small"><span className="muted">{k}</span><span>{v}</span></div>
+          ))}
         </div>
       </section>
 
