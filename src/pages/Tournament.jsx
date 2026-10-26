@@ -82,12 +82,12 @@ function RoundRow({ r, result }) {
   );
 }
 
-function OomRow({ t }) {
+function OomRow({ t, highlight }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="round-item">
       <button className="standing plain-btn oom-row" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span className={t.qualified ? 'pos pos-top' : 'pos'}>{t.place}</span>
+        <span className={highlight && t.qualified ? 'pos pos-top' : 'pos'}>{t.place}</span>
         <span className="grow stack gap2">
           <span className="t15 medium">{t.name}</span>
           <span className="small muted">{t.played} runde{t.played === 1 ? '' : 'r'}{t.wins ? ` · ${t.wins} seier${t.wins === 1 ? '' : 'e'}` : ''}</span>
@@ -117,6 +117,8 @@ function OrderOfMerit({ res }) {
   const xmas = [...table].filter((t) => t.beforeChristmas > 0).sort((a, b) => b.beforeChristmas - a.beforeChristmas || a.order - b.order).slice(0, 3);
   const top = shown.slice(0, SETTINGS.playoffSpots);
   const finalDone = ROUNDS.every((r) => roundStatus(r) === 'ferdig');
+  // Sluttspilloppsett og sluttspill-linje vises først når 7 runder er ferdig spilt.
+  const showPlayoff = ROUNDS.filter((r) => roundStatus(r) === 'ferdig').length >= SETTINGS.countingRounds;
   // Foreløpig så lenge en runde med registrerte resultater ikke er ferdig spilt.
   const openRound = ROUNDS.find((r) => roundStatus(r) === 'pagar' && results[r.n]?.validCount > 0);
 
@@ -137,15 +139,15 @@ function OrderOfMerit({ res }) {
           {shown.length === 0 && <p className="muted small pad12">Leaderboardet kommer når de første resultatene er registrert.</p>}
           {shown.map((t, i) => (
             <Fragment key={t.id}>
-              <OomRow t={t} />
-              {t.place === SETTINGS.playoffSpots && shown[i + 1] && <div className="cutline"><span />SLUTTSPILL<span /></div>}
+              <OomRow t={t} highlight={showPlayoff} />
+              {showPlayoff && t.place === SETTINGS.playoffSpots && shown[i + 1] && <div className="cutline"><span />SLUTTSPILL<span /></div>}
             </Fragment>
           ))}
         </div>
         {shown.length > 0 && <span className="small muted">Poeng fra de {SETTINGS.countingRounds} beste rundene teller. Likt: flest seire, deretter beste runde. Trykk på en spiller for poeng per runde.</span>}
       </section>
 
-      {top.length === SETTINGS.playoffSpots && (
+      {showPlayoff && top.length === SETTINGS.playoffSpots && (
         <section className="stack gap10">
           <div className="row between baseline">
             <h2 className="label">SLUTTSPILL</h2>
