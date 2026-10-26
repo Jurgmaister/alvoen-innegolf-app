@@ -190,7 +190,7 @@ function TournamentAdmin() {
         <button className="btn btn-primary" onClick={saveInfo}>Lagre turneringsinfo</button>
       </section>
 
-      <p className="small muted">Leaderboard / OoM regnes nå ut automatisk fra scorene under fanen «Resultater».</p>
+      <p className="small muted">Leaderboard / OoM regnes nå ut automatisk fra scorene under fanen «Vinterserien».</p>
       {msg && <p className={msg.startsWith('Feil') ? 'error small' : 'success small'}>{msg}</p>}
     </div>
   );
@@ -279,7 +279,7 @@ function InfoAdmin() {
 const TABS = [
   { id: 'melding', label: 'Send melding' },
   { id: 'innboks', label: 'Innboks' },
-  { id: 'resultater', label: 'Resultater' },
+  { id: 'resultater', label: 'Vinterserien' },
   { id: 'turnering', label: 'Turnering' },
   ...(SHOW_INFO_PAGES ? [{ id: 'info', label: 'Infosider' }] : []),
   { id: 'kiosk', label: 'Kiosk' },

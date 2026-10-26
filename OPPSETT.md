@@ -95,15 +95,15 @@ Koden ligger i GitHub-prosjektet `Jurgmaister/alvoen-innegolf-app`. Hver gang ko
 ## Resultater (vinterserien)
 
 1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/resultater.sql` og trykk **Run**.
-2. Adminsiden → **Resultater → Spillere**: legg inn hver spiller med kjønn og Golfbox-indeks. HCP-indeksen (50 %) låses ved påmelding.
+2. Adminsiden → **Vinterserien → Spillere**: legg inn hver spiller med kjønn og Golfbox-indeks. HCP-indeksen (50 %) låses ved påmelding.
 3. **Baneverdier**: kontroller par, CR og slope per runde. Runde 3, 5, 7 og 9 mangler og må fylles inn.
 4. **Registrer score**: velg runde, skriv brutto slag og trykk Lagre. Plass, poeng og Order of Merit oppdateres i turneringsfanen med en gang.
 
 5. **Tee-valg**: kjør `supabase/tee.sql` (etter `resultater.sql`). Da får hver runde fra runde 2 en liste med tee-er med par, CR og slope for herre og dame. Under **Registrer score** velger du tee per spiller; standard er rundens tee. Verdiene rettes under **Baneverdier**.
 
-6. **Handicapkontroll**: kjør også `supabase/handicapkontroll.sql`. Under Resultater → Handicapkontroll velger du spiller og runde, skriver handicapet fra scorekortet i Trackman og logger kontrollen. Golfbox-sjekk registreres på spilleren.
+6. **Handicapkontroll**: kjør også `supabase/handicapkontroll.sql`. Under Vinterserien → Handicapkontroll velger du spiller og runde, skriver handicapet fra scorekortet i Trackman og logger kontrollen. Golfbox-sjekk registreres på spilleren.
 
-7. **Innmelding av Golfbox-HCP**: kjør `supabase/hcp_innmelding.sql`. Spillerne melder inn handicapet i turneringsfanen. Innmeldingene dukker opp øverst under **Resultater → Spillere**, der du legger dem til som ny spiller eller oppdaterer en eksisterende.
+7. **Innmelding av Golfbox-HCP**: kjør `supabase/hcp_innmelding.sql`. Spillerne melder inn handicapet i turneringsfanen. Innmeldingene dukker opp øverst under **Vinterserien → Spillere**, der du legger dem til som ny spiller eller oppdaterer en eksisterende.
 
 Beregningen følger regnearket «Vinterserie_2026-27_resultater_v4» (se `src/scoring.js`).
 

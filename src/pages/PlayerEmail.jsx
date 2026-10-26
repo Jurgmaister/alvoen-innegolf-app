@@ -64,7 +64,7 @@ export default function PlayerEmail() {
           <strong>{emails.length} av {players.length} spillere</strong> har e-post registrert.
           {missing.length > 0 && <> <button className="inline-link small" onClick={() => setShowMissing(showMissing === true ? false : true)}>{showMissing === true ? 'Skjul' : 'Vis'} hvem som mangler</button></>}
         </p>
-        {showMissing === true && <p className="small muted">{missing.map((p) => p.name).join(', ')}. Legg til e-post under Resultater → Spillere.</p>}
+        {showMissing === true && <p className="small muted">{missing.map((p) => p.name).join(', ')}. Legg til e-post under Vinterserien → Spillere.</p>}
         {showMissing === 'alle' && <p className="small selectable">{emails.join(', ')}</p>}
         <label className="field">Emne<input value={subject} onChange={(e) => setSubject(e.target.value)} maxLength={150} /></label>
         <label className="field">Tekst<textarea rows={5} value={body} onChange={(e) => setBody(e.target.value)} /></label>

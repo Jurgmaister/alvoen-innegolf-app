@@ -556,7 +556,7 @@ export default function ResultsAdmin({ onChange }) {
 
   return (
     <div className="stack gap14">
-      <div className="row gap8 wrap" role="group" aria-label="Resultater">
+      <div className="row gap8 wrap" role="group" aria-label="Vinterserien">
         {[['score', 'Registrer score'], ['spillere', 'Spillere'], ['kontroll', 'Handicapkontroll'], ['bane', 'Baneverdier']].map(([id, label]) => (
           <button key={id} className={sub === id ? 'chip chip-on' : 'chip'} aria-pressed={sub === id} onClick={() => setSub(id)}>{label}{id === 'spillere' && pending > 0 && <span className="count-badge">{pending}</span>}</button>
         ))}
