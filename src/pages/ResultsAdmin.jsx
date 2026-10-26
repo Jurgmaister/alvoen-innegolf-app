@@ -330,7 +330,13 @@ function Players({ data, reload, onChange }) {
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
   const [msg, setMsg] = useState('');
+  const [q, setQ] = useState('');
   const played = (id) => data.scores.filter((s) => s.player_id === id).length;
+  const needle = q.trim().toLowerCase();
+  const sorted = [...data.players].sort((a, b) => a.name.localeCompare(b.name, 'nb', { sensitivity: 'base' }));
+  const shown = needle
+    ? sorted.filter((p) => [p.name, p.trackman_name, p.contact].some((v) => (v || '').toLowerCase().includes(needle)))
+    : sorted;
 
   const add = async (v) => {
     setMsg('');
@@ -356,8 +362,14 @@ function Players({ data, reload, onChange }) {
       <HcpSubmissions data={data} reload={reload} onChange={onChange} />
       <strong className="t16">{data.players.length} spillere</strong>
       {data.players.length > 0 && (
+        <label className="field">Søk etter spiller
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Navn, Trackman-navn, telefon eller e-post" autoComplete="off" />
+          {needle && <span className="small muted field-hint">{shown.length ? `${shown.length} treff` : `Ingen spiller heter «${q.trim()}». Legg til spilleren under.`}</span>}
+        </label>
+      )}
+      {shown.length > 0 && (
         <div className="card list">
-          {[...data.players].sort((a, b) => a.name.localeCompare(b.name, 'nb', { sensitivity: 'base' })).map((p) => (editing === p.id ? (
+          {shown.map((p) => (editing === p.id ? (
             <div key={p.id} className="list-item">
               <PlayerForm hasVerifyCols={hasVerifyCols} initial={p} onSave={(v) => update(p.id, v)} onCancel={() => setEditing(null)} onDelete={() => remove(p)} />
             </div>
