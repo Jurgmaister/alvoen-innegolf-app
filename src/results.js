@@ -46,3 +46,6 @@ export const fmtIndex = (v) => {
   return n < 0 ? `+${t}` : t;
 };
 export const fmtSigned = (v) => (v === null || v === undefined ? '–' : v > 0 ? `+${v}` : String(v));
+
+// Score i forhold til par som på et leaderboard: E, +3, −2.
+export const fmtToPar = (v) => (v === null || v === undefined ? '–' : v === 0 ? 'E' : v > 0 ? `+${v}` : `−${Math.abs(v)}`);

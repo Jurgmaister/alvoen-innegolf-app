@@ -91,7 +91,9 @@ export function computeRound({ scores, players, ratings, nineHoles, tees = {} })
     else if (ph === null) check = 'Mangler CR/slope';
     else if (gross === null) check = 'Mangler brutto';
     const valid = check === 'OK' && net !== null && !s.struck;
-    return { ...s, player: p, tee: tee || null, name: p?.name ?? '?', hcp_index: p?.hcp_index ?? null, ph, gross, net, check, valid, place: null, points: null, ties: 0 };
+    const par = rating && rating.par !== null && rating.par !== undefined && rating.par !== '' ? Number(rating.par) : null;
+    const toPar = net !== null && par !== null ? net - par : null; // netto i forhold til banepar (for valgt tee og kjønn)
+    return { ...s, player: p, tee: tee || null, name: p?.name ?? '?', hcp_index: p?.hcp_index ?? null, ph, gross, net, par, toPar, check, valid, place: null, points: null, ties: 0 };
   });
   const valid = rows.filter((r) => r.valid);
   const n = valid.length;

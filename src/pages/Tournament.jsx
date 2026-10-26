@@ -4,7 +4,7 @@ import { TOURNAMENT_SIGNUP_URL } from '../config.js';
 import { ROUNDS, ROUND_SETTINGS, FINAL, roundStatus, currentRound, formatRange, formatDate } from '../rounds.js';
 import Topbar from '../components/Topbar.jsx';
 import { useQuery, fetchTournament } from '../data.js';
-import { useResults, fmtIndex, fmtSigned } from '../results.js';
+import { useResults, fmtIndex, fmtSigned, fmtToPar } from '../results.js';
 import { SETTINGS } from '../scoring.js';
 import HcpSubmit from './HcpSubmit.jsx';
 
@@ -25,13 +25,15 @@ function RoundResult({ result, provisional }) {
         <strong className="t14">{provisional ? 'Foreløpig resultat' : 'Resultat'} ({rows.length} spillere)</strong>
         {provisional && <span className="tag tag-warn">Foreløpig</span>}
       </div>
+      <div className="table-scroll">
       <table className="res-table">
-        <thead><tr><th>Pl.</th><th>Spiller</th><th>Brutto</th><th>HCP</th><th>Netto</th><th>Poeng</th></tr></thead>
+        <thead><tr><th>Pl.</th><th>Spiller</th><th>Score</th><th>Brutto</th><th>HCP</th><th>Netto</th><th>Poeng</th></tr></thead>
         <tbody>
           {rows.map((x) => (
             <tr key={x.player_id}>
               <td>{x.ties > 1 ? `T${x.place}` : x.place}</td>
               <td>{x.name}{x.tee && <span className="tee-note">Tee {x.tee.name.replace(/ \(.*\)$/, '')}</span>}</td>
+              <td className={x.toPar < 0 ? 'topar under' : 'topar'}>{fmtToPar(x.toPar)}</td>
               <td>{x.gross}</td>
               <td>{fmtSigned(x.ph)}</td>
               <td className="strong">{x.net}</td>
@@ -40,7 +42,8 @@ function RoundResult({ result, provisional }) {
           ))}
         </tbody>
       </table>
-      <span className="small muted">HCP = playing handicap for runden (fra 50 % av Golfbox-indeks, slope og CR). T = delt plass.</span>
+      </div>
+      <span className="small muted">Score = netto i forhold til banens par (E = par). HCP = playing handicap for runden (fra 50 % av Golfbox-indeks, slope og CR). T = delt plass.</span>
     </div>
   );
 }

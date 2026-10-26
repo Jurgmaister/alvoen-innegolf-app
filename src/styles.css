@@ -337,3 +337,9 @@ button.round {
 .inline-link { background: none; border: 0; padding: 0; font: inherit; color: var(--navy); text-decoration: underline; cursor: pointer; }
 .btn.disabled { opacity: .5; pointer-events: none; }
 .selectable { user-select: all; overflow-wrap: anywhere; }
+.res-table td.topar { font-weight: 700; color: var(--navy); }
+.res-table td.topar.under { color: #B42318; }
+.table-scroll { overflow-x: auto; }
+.res-table th, .res-table td { padding-left: 3px; padding-right: 3px; }
+.res-table td:nth-child(2) { overflow-wrap: anywhere; }
+@media (max-width: 400px) { .res-table { font-size: 13px; } .res-table th { font-size: 10px; letter-spacing: 0; } .res-table th, .res-table td { padding-left: 2px; padding-right: 2px; } }
