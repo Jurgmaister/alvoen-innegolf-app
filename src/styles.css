@@ -334,3 +334,6 @@ button.round {
 .self-start { align-self: flex-start; }
 .notice { align-items: flex-start; background: #FBF6EC; border: 1px solid #EBDDBF; border-radius: 12px; padding: 10px 12px; }
 .notice .tag { flex-shrink: 0; }
+.inline-link { background: none; border: 0; padding: 0; font: inherit; color: var(--navy); text-decoration: underline; cursor: pointer; }
+.btn.disabled { opacity: .5; pointer-events: none; }
+.selectable { user-select: all; overflow-wrap: anywhere; }

@@ -5,6 +5,7 @@ import KioskAdmin from './KioskAdmin.jsx';
 import StatsAdmin from './StatsAdmin.jsx';
 import ResultsAdmin, { countHcpSubmissions } from './ResultsAdmin.jsx';
 import Inbox, { countUnhandled } from './Inbox.jsx';
+import PlayerEmail from './PlayerEmail.jsx';
 import { supabase, callPush } from '../supabase.js';
 import { CATEGORIES, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPages, formatWhen } from '../data.js';
@@ -125,6 +126,8 @@ function SendMessage() {
         {result && <p className="success small">{result}</p>}
         {error && <p className="error small">{error}</p>}
       </form>
+
+      <PlayerEmail />
 
       <section className="stack gap10">
         <h2 className="label">SENDTE MELDINGER</h2>
