@@ -357,7 +357,7 @@ function Players({ data, reload, onChange }) {
       <strong className="t16">{data.players.length} spillere</strong>
       {data.players.length > 0 && (
         <div className="card list">
-          {data.players.map((p) => (editing === p.id ? (
+          {[...data.players].sort((a, b) => a.name.localeCompare(b.name, 'nb', { sensitivity: 'base' })).map((p) => (editing === p.id ? (
             <div key={p.id} className="list-item">
               <PlayerForm hasVerifyCols={hasVerifyCols} initial={p} onSave={(v) => update(p.id, v)} onCancel={() => setEditing(null)} onDelete={() => remove(p)} />
             </div>
