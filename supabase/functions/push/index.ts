@@ -8,9 +8,12 @@
 //   contact     – kunde sender melding via kontaktskjemaet; varsler admin (åpen, med sperre mot misbruk)
 //   admin-alerts – slår av/på varsel om nye kontaktmeldinger på en admin-enhet (kun admin)
 //   admin-alerts-status – om denne enheten får varsel (kun admin)
+//   email-players – sender e-post fra Gmail-kontoen til alle spillere med e-post (kun admin)
+//   email-status – om e-post er satt opp (kun admin)
 //
 // Hemmeligheter (Edge Functions → Secrets):
 //   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (f.eks. mailto:post@alvoeninnegolf.no)
+// For e-post (valgfritt): GMAIL_USER (f.eks. alvoeninnegolf@gmail.com) og GMAIL_APP_PASSWORD (app-passord fra Google).
 // SUPABASE_URL og SUPABASE_SERVICE_ROLE_KEY settes automatisk av Supabase.
 //
 // Web Push er laget med Web Crypto (RFC 8291 / RFC 8292), uten eksterne push-bibliotek.
@@ -156,6 +159,105 @@ async function sendPush(sub: { endpoint: string; p256dh: string; auth: string },
   });
 }
 
+
+// ---------- E-post via Gmail (SMTP over TLS, port 465) ----------
+const EMAIL_RE = /[^\s,;<>()"']+@[^\s,;<>()"']+\.[a-z]{2,}/gi;
+
+function b64utf8(text: string): string {
+  const bytes = enc.encode(text);
+  let bin = "";
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+const wrap76 = (s: string) => s.replace(/(.{76})/g, "$1\r\n");
+const encodeHeader = (s: string) => (/^[\x20-\x7e]*$/.test(s) ? s : `=?UTF-8?B?${b64utf8(s)}?=`);
+
+class Smtp {
+  private conn!: Deno.TlsConn;
+  private buf = "";
+  private dec = new TextDecoder();
+  async connect(host: string, port: number) {
+    this.conn = await Deno.connectTls({ hostname: host, port });
+    await this.expect(220);
+  }
+  private async readReply(): Promise<{ code: number; text: string }> {
+    const chunk = new Uint8Array(4096);
+    while (true) {
+      const lines = this.buf.split("\r\n");
+      for (let i = 0; i < lines.length - 1; i++) {
+        if (/^\d{3} /.test(lines[i])) {
+          const text = lines.slice(0, i + 1).join("\n");
+          this.buf = lines.slice(i + 1).join("\r\n");
+          return { code: Number(lines[i].slice(0, 3)), text };
+        }
+      }
+      const n = await this.conn.read(chunk);
+      if (n === null) throw new Error("E-postserveren lukket forbindelsen.");
+      this.buf += this.dec.decode(chunk.subarray(0, n));
+    }
+  }
+  async expect(code: number) {
+    const r = await this.readReply();
+    if (r.code !== code) throw new Error(`E-postserveren svarte: ${r.text.slice(0, 200)}`);
+    return r;
+  }
+  async cmd(line: string, code: number) {
+    await this.conn.write(enc.encode(line + "\r\n"));
+    return this.expect(code);
+  }
+  async send(data: string) { await this.conn.write(enc.encode(data)); }
+  close() { try { this.conn.close(); } catch { /* ignorer */ } }
+}
+
+async function sendGmail(opts: { subject: string; body: string; bcc: string[]; to: string }) {
+  const user = secret("GMAIL_USER");
+  const pass = secret("GMAIL_APP_PASSWORD").replace(/\s+/g, "");
+  if (!user || !pass) throw new Error("E-post er ikke satt opp. Legg inn GMAIL_USER og GMAIL_APP_PASSWORD under Edge Functions → Secrets.");
+  const host = Deno.env.get("SMTP_HOST") || "smtp.gmail.com";
+  const port = Number(Deno.env.get("SMTP_PORT") || 465);
+  const date = new Date().toUTCString().replace("GMT", "+0000");
+  const msgId = `<${crypto.randomUUID()}@alvoeninnegolf>`;
+  const headers = [
+    `From: ${encodeHeader("Alvøen Innegolf")} <${user}>`,
+    `To: ${opts.to}`,
+    `Reply-To: ${user}`,
+    `Subject: ${encodeHeader(opts.subject)}`,
+    `Date: ${date}`,
+    `Message-ID: ${msgId}`,
+    "MIME-Version: 1.0",
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+  ].join("\r\n");
+  const message = `${headers}\r\n\r\n${wrap76(b64utf8(opts.body))}\r\n`;
+
+  // Gmail tar maks 100 mottakere per e-post: send i puljer.
+  const all = [opts.to, ...opts.bcc.filter((a) => a.toLowerCase() !== opts.to.toLowerCase())];
+  const batches: string[][] = [];
+  for (let i = 0; i < all.length; i += 90) batches.push(all.slice(i, i + 90));
+
+  const smtp = new Smtp();
+  try {
+    await smtp.connect(host, port);
+    await smtp.cmd("EHLO alvoeninnegolf.no", 250);
+    try {
+      await smtp.cmd(`AUTH PLAIN ${b64utf8(`\0${user}\0${pass}`)}`, 235);
+    } catch {
+      throw new Error("Gmail godtok ikke innloggingen. Sjekk GMAIL_USER og at GMAIL_APP_PASSWORD er et app-passord (16 tegn).");
+    }
+    for (const rcpts of batches) {
+      await smtp.cmd(`MAIL FROM:<${user}>`, 250);
+      for (const r of rcpts) await smtp.cmd(`RCPT TO:<${r}>`, 250);
+      await smtp.cmd("DATA", 354);
+      await smtp.send(message + ".\r\n");
+      await smtp.expect(250);
+    }
+    await smtp.cmd("QUIT", 221).catch(() => {});
+  } finally {
+    smtp.close();
+  }
+  return all.length - 1;
+}
+
 // ---------- Database ----------
 function db() {
   const url = Deno.env.get("SUPABASE_URL");
@@ -287,6 +389,30 @@ async function handle(req: Request): Promise<Response> {
       await supabase.from("admin_push_subscriptions").delete().eq("endpoint", endpoint);
     }
     return json({ ok: true });
+  }
+
+  if (action === "email-status") {
+    if (!(await requireAdmin(req, supabase))) return json({ error: "Ikke innlogget som administrator" }, 401);
+    return json({ ok: true, configured: Boolean(secret("GMAIL_USER") && secret("GMAIL_APP_PASSWORD")), from: secret("GMAIL_USER") || null });
+  }
+
+  if (action === "email-players") {
+    const adminEmail = await requireAdmin(req, supabase);
+    if (!adminEmail) return json({ error: "Ikke innlogget som administrator" }, 401);
+    const subject = String(payload.subject ?? "").trim().slice(0, 150);
+    const body = String(payload.body ?? "").trim().slice(0, 10000);
+    if (!subject || !body) return json({ error: "Skriv emne og tekst." }, 400);
+    const from = secret("GMAIL_USER");
+    if (payload.test) {
+      await sendGmail({ subject: `[TEST] ${subject}`, body, bcc: [], to: adminEmail });
+      return json({ ok: true, sent: 0, test: adminEmail });
+    }
+    const { data: players, error } = await supabase.from("players").select("contact");
+    if (error) throw new Error(`Kunne ikke hente spillere: ${error.message}`);
+    const emails = [...new Set((players ?? []).map((p) => (String(p.contact ?? "").match(EMAIL_RE)?.[0] ?? "").toLowerCase()).filter(Boolean))];
+    if (!emails.length) return json({ error: "Ingen spillere har e-post registrert." }, 400);
+    const sent = await sendGmail({ subject, body, bcc: emails, to: from });
+    return json({ ok: true, sent });
   }
 
   if (action === "stats") {

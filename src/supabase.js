@@ -12,7 +12,7 @@ export const supabase = isConfigured
 // Kaller push-funksjonen. Admin-handlinger sender med innloggingen.
 export async function callPush(action, body = {}) {
   let token = SUPABASE_ANON_KEY;
-  if (['send', 'stats', 'admin-alerts', 'admin-alerts-status'].includes(action)) {
+  if (['send', 'stats', 'admin-alerts', 'admin-alerts-status', 'email-players', 'email-status'].includes(action)) {
     const { data } = await supabase.auth.getSession();
     token = data.session?.access_token;
     if (!token) throw new Error('Du må logge inn på nytt.');

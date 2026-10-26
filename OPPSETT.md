@@ -117,6 +117,17 @@ Kundene finner «Send oss en melding» på forsiden og på Meldinger-siden. Meld
 
 Svar kunden med knappene for e-post, SMS eller telefon, og trykk **Marker som behandlet**. Skjemaet har sperre mot spam: maks 5 meldinger per enhet i timen.
 
+## E-post til spillerne (fra alvoeninnegolf@gmail.com)
+
+Adminsiden → **Send melding** → «E-post til spillerne» sender til alle spillere med e-post i kontaktfeltet.
+
+1. Logg inn på alvoeninnegolf@gmail.com → **Google-konto → Sikkerhet** → slå på **totrinnsbekreftelse**.
+2. Gå til **myaccount.google.com/apppasswords**, lag et app-passord (navn: «Alvøen-appen») og kopier de 16 tegnene.
+3. Supabase → **Edge Functions → Secrets**: legg til `GMAIL_USER` = `alvoeninnegolf@gmail.com` og `GMAIL_APP_PASSWORD` = app-passordet.
+4. Oppdater push-funksjonen: **Edge Functions → push → Code**, lim inn hele `supabase/functions/push/index.ts`, **Deploy**.
+
+Gmail tillater rundt 500 mottakere per døgn.
+
 ## Statistikk
 
 1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/statistikk.sql` og trykk **Run**.
