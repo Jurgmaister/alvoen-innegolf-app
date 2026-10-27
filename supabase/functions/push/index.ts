@@ -10,6 +10,7 @@
 //   admin-alerts-status – om denne enheten får varsel (kun admin)
 //   email-players – sender e-post fra Gmail-kontoen til alle spillere med e-post (kun admin)
 //   email-status – om e-post er satt opp (kun admin)
+//   trackman-scores – henter brutto slag og tee per spiller for en runde fra Trackman-leaderboardet (kun admin)
 //
 // Hemmeligheter (Edge Functions → Secrets):
 //   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (f.eks. mailto:post@alvoeninnegolf.no)
@@ -258,6 +259,71 @@ async function sendGmail(opts: { subject: string; body: string; bcc: string[]; t
   return all.length - 1;
 }
 
+
+// ---------- Trackman (åpent leaderboard-API) ----------
+// Vinterserien 2026/27 i Trackman. Kan overstyres med secret TRACKMAN_TOURNAMENT_ID ved ny sesong.
+const TRACKMAN_TOURNAMENT = "T3JkZXJPZk1lcml0VG91cm5hbWVudApkMTE4ZjFjMmEtZTk5Ni00MDA2LTlhM2MtZjYxMDIzZmI1ZGViOlB1Ymxpc2hlZA==";
+
+async function trackmanGql(query: string, variables: Record<string, unknown>) {
+  const res = await fetch("https://api.trackmangolf.com/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!res.ok) throw new Error(`Trackman svarte ${res.status}`);
+  const data = await res.json();
+  if (data.errors?.length) throw new Error(`Trackman: ${data.errors[0].message}`);
+  return data.data;
+}
+
+async function trackmanScores(roundNo: number) {
+  const t = secret("TRACKMAN_TOURNAMENT_ID") || TRACKMAN_TOURNAMENT;
+  const info = await trackmanGql(
+    `query($t: ID!) { node(id: $t) { ... on CourseTournament { name rounds { id roundNumber numberOfHoles } } } }`,
+    { t },
+  );
+  const round = info?.node?.rounds?.find((r: any) => r.roundNumber === roundNo);
+  if (!round) throw new Error(`Fant ikke runde ${roundNo} i Trackman-turneringen.`);
+  const lb = await trackmanGql(
+    `query($t: ID!, $r: ID!) { node(id: $t) { ... on CourseTournament { roundLeaderboard(roundId: $r, scoringFormat: STROKE) {
+      records(skip: 0, take: 500) { items { playername hcp score { score state thru scorecardId } } } } } } }`,
+    { t, r: round.id },
+  );
+  const items = lb?.node?.roundLeaderboard?.records?.items ?? [];
+  const started = items.filter((i: any) => i.score && i.score.state !== "NOT_PLAYED");
+  // Scorekortet gir tee og om runden er fullført. Hentes for alle som har startet.
+  const cards = await Promise.all(started.map(async (i: any) => {
+    if (!i.score.scorecardId) return null;
+    try {
+      const d = await trackmanGql(
+        `query($id: ID!) { node(id: $id) { ... on Scorecard { grossScore teeName isCompleted numberOfHolesPlayed numberOfHolesToPlay } } }`,
+        { id: i.score.scorecardId },
+      );
+      return d?.node ?? null;
+    } catch { return null; }
+  }));
+  return {
+    tournament: info.node.name,
+    round: roundNo,
+    holes: round.numberOfHoles ?? null,
+    players: started.map((i: any, k: number) => {
+      const c = cards[k];
+      const holesPlayed = c?.numberOfHolesPlayed ?? i.score.thru ?? null;
+      const toPlay = c?.numberOfHolesToPlay ?? round.numberOfHoles ?? null;
+      const completed = c ? Boolean(c.isCompleted) && (toPlay === null || holesPlayed >= toPlay) : i.score.state === "PLAYED";
+      return {
+        name: String(i.playername ?? "").trim(),
+        gross: c?.grossScore ?? i.score.score ?? null,
+        tee: c?.teeName ?? null,
+        completed,
+        holesPlayed,
+        toPlay,
+        hcp: typeof i.hcp === "number" ? Math.round(i.hcp * 10) / 10 : null,
+      };
+    }),
+  };
+}
+
 // ---------- Database ----------
 function db() {
   const url = Deno.env.get("SUPABASE_URL");
@@ -413,6 +479,17 @@ async function handle(req: Request): Promise<Response> {
     if (!emails.length) return json({ error: "Ingen spillere har e-post registrert." }, 400);
     const sent = await sendGmail({ subject, body, bcc: emails, to: from });
     return json({ ok: true, sent });
+  }
+
+  if (action === "trackman-scores") {
+    if (!(await requireAdmin(req, supabase))) return json({ error: "Ikke innlogget som administrator" }, 401);
+    const roundNo = Number(payload.roundNo);
+    if (!Number.isInteger(roundNo) || roundNo < 1 || roundNo > 20) return json({ error: "Ugyldig runde" }, 400);
+    try {
+      return json({ ok: true, ...(await trackmanScores(roundNo)) });
+    } catch (e) {
+      return json({ error: `Kunne ikke hente fra Trackman: ${e instanceof Error ? e.message : e}` }, 502);
+    }
   }
 
   if (action === "stats") {

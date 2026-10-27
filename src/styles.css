@@ -343,3 +343,4 @@ button.round {
 .res-table th, .res-table td { padding-left: 3px; padding-right: 3px; }
 .res-table td:nth-child(2) { overflow-wrap: anywhere; }
 @media (max-width: 400px) { .res-table { font-size: 13px; } .res-table th { font-size: 10px; letter-spacing: 0; } .res-table th, .res-table td { padding-left: 2px; padding-right: 2px; } }
+.warn-text { color: var(--alert-text); }

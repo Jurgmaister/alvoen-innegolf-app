@@ -103,6 +103,8 @@ Koden ligger i GitHub-prosjektet `Jurgmaister/alvoen-innegolf-app`. Hver gang ko
 
 6. **Handicapkontroll**: kjør også `supabase/handicapkontroll.sql`. Under Vinterserien → Handicapkontroll velger du spiller og runde, skriver handicapet fra scorekortet i Trackman og logger kontrollen. Golfbox-sjekk registreres på spilleren.
 
+8. **Hent scorer fra Trackman**: under **Registrer score** henter knappen brutto slag og tee for alle som har fullført runden i Trackman-turneringen. Spillere kobles på Trackman-navn (eller navn). Kontroller og trykk **Lagre**. Krever oppdatert push-funksjon. Ny sesong: legg inn ny turnerings-ID som secret `TRACKMAN_TOURNAMENT_ID`.
+
 7. **Innmelding av Golfbox-HCP**: kjør `supabase/hcp_innmelding.sql`. Spillerne melder inn handicapet i turneringsfanen. Innmeldingene dukker opp øverst under **Vinterserien → Spillere**, der du legger dem til som ny spiller eller oppdaterer en eksisterende.
 
 Beregningen følger regnearket «Vinterserie_2026-27_resultater_v4» (se `src/scoring.js`).

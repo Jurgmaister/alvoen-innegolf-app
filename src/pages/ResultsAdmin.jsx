@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import Icon from '../components/Icon.jsx';
-import { supabase } from '../supabase.js';
+import { supabase, callPush } from '../supabase.js';
 import { ROUNDS, currentRound, formatRange } from '../rounds.js';
 import { hcpIndexUsed, computeRound } from '../scoring.js';
 import { useResults, isNine, fmtIndex, fmtSigned } from '../results.js';
@@ -85,6 +85,45 @@ function ScoreEntry({ data, reload }) {
 
   const set = (id, patch) => setDraft((d) => ({ ...d, [id]: { ...d[id], ...patch } }));
 
+  // ---- Hent brutto fra Trackman-leaderboardet ----
+  const [tm, setTm] = useState(null); // { busy, error, summary, byPlayer }
+  useEffect(() => { setTm(null); }, [roundNo]);
+  const normName = (v) => (v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  const teeKey = (v) => normName(v).replace(/\s*\(.*\)\s*$/, '');
+  const matchTee = (teeName, gender) => {
+    if (!teeName) return { id: '', ok: true };
+    const k = teeKey(teeName);
+    const std = gender === 'D' ? round.women : round.men;
+    if (normName(std).split(' – ')[0] === k || normName(std).startsWith(`${k} `)) return { id: '', ok: true };
+    const t = roundTees.find((x) => teeKey(x.name) === k || normName(x.name).includes(`trackman: ${k})`));
+    return t ? { id: String(t.id), ok: true } : { id: null, ok: false };
+  };
+  const fetchTrackman = async () => {
+    setTm({ busy: true }); setMsg('');
+    try {
+      const r = await callPush('trackman-scores', { roundNo });
+      const byPlayer = {}; const unknown = []; const unfinished = [];
+      let filled = 0; let same = 0;
+      const next = { ...draft };
+      for (const x of r.players) {
+        const p = data.players.find((q) => normName(q.trackman_name) === normName(x.name)) || data.players.find((q) => normName(q.name) === normName(x.name));
+        if (!x.completed) { unfinished.push(`${x.name} (${x.holesPlayed ?? '?'} av ${x.toPlay ?? '?'} hull)`); if (p) byPlayer[p.id] = { ...x, note: 'Ikke fullført i Trackman' }; continue; }
+        if (!p) { unknown.push(`${x.name} (${x.gross})`); continue; }
+        const tee = matchTee(x.tee, p.gender);
+        const cur = next[p.id] || { gross: '', struck: false, tee_id: '' };
+        const patch = { gross: String(x.gross) };
+        if (tee.ok) patch.tee_id = tee.id;
+        if (cur.gross === patch.gross && (!tee.ok || cur.tee_id === patch.tee_id)) same++; else filled++;
+        next[p.id] = { ...cur, ...patch };
+        byPlayer[p.id] = { ...x, teeUnknown: !tee.ok };
+      }
+      setDraft(next);
+      setTm({ byPlayer, summary: { total: r.players.length, filled, same, unknown, unfinished } });
+    } catch (err) {
+      setTm({ error: /Ukjent handling/.test(err.message) ? 'Push-funksjonen må oppdateres i Supabase for å hente fra Trackman.' : err.message });
+    }
+  };
+
   return (
     <div className="stack gap14">
       <label className="field">Runde
@@ -98,6 +137,20 @@ function ScoreEntry({ data, reload }) {
       </div>
       {missingRatings && <p className="warn">Baneverdier (par, CR, slope) mangler for denne runden. Fyll dem inn under «Baneverdier» før resultatene kan regnes ut.</p>}
       {data.players.length === 0 && <p className="muted">Legg inn spillere under «Spillere» først.</p>}
+      {data.players.length > 0 && (
+        <div className="card stack gap8">
+          <button className="btn btn-accent" disabled={tm?.busy} onClick={fetchTrackman}>{tm?.busy ? 'Henter fra Trackman …' : `Hent scorer fra Trackman (runde ${roundNo})`}</button>
+          {!tm && <span className="small muted">Henter brutto slag og tee for alle som har fullført runden, og fyller dem inn under. Ingenting lagres før du trykker Lagre.</span>}
+          {tm?.error && <p className="error small">{tm.error}</p>}
+          {tm?.summary && (
+            <div className="stack gap4 small">
+              <span className="success">{tm.summary.total === 0 ? 'Ingen har spilt denne runden i Trackman ennå.' : `${tm.summary.filled} score${tm.summary.filled === 1 ? '' : 'r'} fylt inn${tm.summary.same ? `, ${tm.summary.same} var allerede riktig` : ''}. Kontroller og trykk Lagre.`}</span>
+              {tm.summary.unfinished.length > 0 && <span className="muted">Ikke fullført: {tm.summary.unfinished.join(', ')}.</span>}
+              {tm.summary.unknown.length > 0 && <span className="warn-text">Ikke registrert i appen: {tm.summary.unknown.join(', ')}. Legg dem til under «Spillere» med samme Trackman-navn og hent på nytt.</span>}
+            </div>
+          )}
+        </div>
+      )}
 
       {data.players.length > 0 && (
         <div className="card list">
@@ -125,6 +178,12 @@ function ScoreEntry({ data, reload }) {
                       ))}
                     </select>
                   )}
+                  {tm?.byPlayer?.[p.id] && (
+                    <span className="small muted">
+                      Trackman: {tm.byPlayer[p.id].note || `${tm.byPlayer[p.id].gross} slag`}{tm.byPlayer[p.id].tee ? ` · tee ${tm.byPlayer[p.id].tee}` : ''}
+                      {tm.byPlayer[p.id].teeUnknown && <span className="error"> (tee ikke i listen – velg selv)</span>}
+                    </span>
+                  )}
                   {r && d.struck && <span className="small muted">Strøket – teller ikke</span>}
                   {(() => { const k = checks.find((c) => c.player_id === p.id && c.round_no === roundNo); return k && !k.ok ? <span className="tag tag-bad">Feil handicap i Trackman (kontroll {k.checked_on.split('-').reverse().join('.')})</span> : null; })()}
                 </div>
@@ -144,7 +203,7 @@ function ScoreEntry({ data, reload }) {
         </button>
       )}
       {msg && <p className={msg.startsWith('Feil') ? 'error small' : 'success small'}>{msg}</p>}
-      <p className="small muted">Skriv brutto slag fra Trackman. Tomt felt = ikke spilt (lagres som slettet). Playing handicap, netto, plass og poeng regnes ut mens du skriver.</p>
+      <p className="small muted">Skriv brutto slag fra Trackman, eller bruk «Hent scorer fra Trackman». Tomt felt = ikke spilt (lagres som slettet). Playing handicap, netto, plass og poeng regnes ut mens du skriver.</p>
     </div>
   );
 }
