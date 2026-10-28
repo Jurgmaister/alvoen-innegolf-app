@@ -130,6 +130,17 @@ Adminsiden → **Send melding** → «E-post til spillerne» sender til alle spi
 
 Gmail tillater rundt 500 mottakere per døgn.
 
+## Kunder fra Alba
+
+Adminsiden → **Kunder** viser kundeliste, nye og faste kunder, når simulatoren brukes og omsetning, hentet fra Alba (kun lesing).
+
+1. Alba → **Innstillinger → API keys**: lag en nøkkel (`alba_sk_…`).
+2. Supabase → **Edge Functions → Secrets**: `ALBA_API_KEY` = nøkkelen.
+3. Kjør `supabase/alba.sql` i SQL Editor.
+4. Oppdater push-funksjonen (lim inn `supabase/functions/push/index.ts`, **Deploy**).
+
+Appen henter nye endringer automatisk når fanen åpnes (hvis det er over en time siden), eller med **Oppdater fra Alba**. Første henting kan ta et par minutter.
+
 ## Statistikk
 
 1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/statistikk.sql` og trykk **Run**.

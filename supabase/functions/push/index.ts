@@ -10,10 +10,12 @@
 //   admin-alerts-status – om denne enheten får varsel (kun admin)
 //   email-players – sender e-post fra Gmail-kontoen til alle spillere med e-post (kun admin)
 //   email-status – om e-post er satt opp (kun admin)
+//   alba-sync – henter nye/endrede bookinger, kunder og betalinger fra Alba Partner API (kun admin)
 //   trackman-scores – henter brutto slag og tee per spiller for en runde fra Trackman-leaderboardet (kun admin)
 //
 // Hemmeligheter (Edge Functions → Secrets):
 //   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT (f.eks. mailto:post@alvoeninnegolf.no)
+// For Alba (valgfritt): ALBA_API_KEY (alba_sk_…, lesetilgang fra Alba → Innstillinger → API keys).
 // For e-post (valgfritt): GMAIL_USER (f.eks. alvoeninnegolf@gmail.com) og GMAIL_APP_PASSWORD (app-passord fra Google).
 // SUPABASE_URL og SUPABASE_SERVICE_ROLE_KEY settes automatisk av Supabase.
 //
@@ -324,6 +326,109 @@ async function trackmanScores(roundNo: number) {
   };
 }
 
+
+// ---------- Alba (Partner API, kun lesing) ----------
+const ALBA_BASE = "https://api.albaplay.com/api/v1";
+const ALBA_ENTITIES: Record<string, { path: string; table: string; map: (x: any) => Record<string, unknown> }> = {
+  contacts: {
+    path: "/contacts", table: "alba_contacts",
+    map: (x) => ({
+      id: String(x.id), first_name: x.first_name ?? null, last_name: x.last_name ?? null,
+      email: x.email ?? null, phone: x.phone ?? null, language: x.language ?? null,
+      email_on: typeof x.email_on === "boolean" ? x.email_on : null,
+      created_at: x.created_at ?? null, modified_at: x.modified_at ?? null, deleted_at: x.deleted_at ?? null,
+    }),
+  },
+  bookings: {
+    path: "/bookings", table: "alba_bookings",
+    map: (x) => ({
+      id: String(x.id), contact_id: x.contact_id != null ? String(x.contact_id) : null, status: x.status ?? null,
+      title: x.title ?? null, start_at: x.start_at ?? null, end_at: x.end_at ?? null,
+      player_count: Number.isFinite(x.player_count) ? x.player_count : null, resources: x.resources ?? null,
+      created_at: x.created_at ?? null, modified_at: x.modified_at ?? null, deleted_at: x.deleted_at ?? null,
+    }),
+  },
+  orders: {
+    path: "/orders", table: "alba_orders",
+    map: (x) => ({
+      id: String(x.id), contact_id: x.contact_id != null ? String(x.contact_id) : null, reference: x.reference ?? null,
+      category: x.category ?? null, currency: x.currency ?? null,
+      total_amount_minor: x.total_amount_minor ?? null, refunded_amount_minor: x.refunded_amount_minor ?? null,
+      payment_status: x.payment_status ?? null, line_items: x.line_items ?? null,
+      ordered_at: x.ordered_at ?? null, modified_at: x.modified_at ?? null, deleted_at: x.deleted_at ?? null,
+    }),
+  },
+};
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function albaGet(path: string, params: Record<string, string>, key: string) {
+  const url = new URL(ALBA_BASE + path);
+  for (const [k, v] of Object.entries(params)) if (v) url.searchParams.set(k, v);
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const res = await fetch(url, { headers: { "X-Api-Key": key, Accept: "application/json" } });
+    if (res.status === 429) { await sleep(Math.min(30, Number(res.headers.get("Retry-After") || 5)) * 1000); continue; }
+    if (res.status >= 500) { await sleep(1000 * 2 ** attempt); continue; }
+    const text = await res.text();
+    if (res.status === 401 || res.status === 403) throw new Error(`Alba avviste nøkkelen (${res.status}). Sjekk ALBA_API_KEY.`);
+    if (!res.ok) throw new Error(`Alba svarte ${res.status}: ${text.slice(0, 200)}`);
+    return JSON.parse(text) as { data: any[]; next_cursor: string | null };
+  }
+  throw new Error("Alba svarer ikke nå. Prøv igjen om litt.");
+}
+
+// Henter i maks ~100 sekunder per kall. Er det mer igjen, returneres done=false og appen kaller igjen.
+async function albaSync(supabase: ReturnType<typeof db>) {
+  const key = secret("ALBA_API_KEY");
+  if (!key) throw new Error("ALBA_API_KEY mangler under Edge Functions → Secrets.");
+  const started = Date.now();
+  const report: Record<string, number> = {};
+  let done = true;
+  for (const [entity, cfg] of Object.entries(ALBA_ENTITIES)) {
+    const { data: st } = await supabase.from("alba_sync").select("*").eq("entity", entity).maybeSingle();
+    let cursor: string | null = st?.cursor ?? null;
+    // Ny gjennomgang: start fra siste endring minus 5 minutter (eller fra starten første gang).
+    const since: string | null = cursor ? st?.walk_since ?? null
+      : st?.last_modified ? new Date(new Date(st.last_modified).getTime() - 5 * 60_000).toISOString() : null;
+    let maxSeen: string | null = cursor ? st?.walk_max ?? null : null;
+    let count = 0;
+    let finished = false;
+    try {
+      while (true) {
+        if (Date.now() - started > 100_000) break;
+        const page = await albaGet(cfg.path, { limit: "200", modified_since: since ?? "", cursor: cursor ?? "" }, key);
+        const rows = (page.data ?? []).map(cfg.map);
+        if (rows.length) {
+          const { error } = await supabase.from(cfg.table).upsert(rows, { onConflict: "id" });
+          if (error) throw new Error(`Kunne ikke lagre ${entity}: ${error.message}`);
+          for (const r of rows) if (r.modified_at && (!maxSeen || String(r.modified_at) > maxSeen)) maxSeen = String(r.modified_at);
+          count += rows.length;
+        }
+        cursor = page.next_cursor ?? null;
+        if (!cursor) { finished = true; break; }
+      }
+      await supabase.from("alba_sync").upsert({
+        entity,
+        last_modified: finished ? (maxSeen ?? st?.last_modified ?? null) : st?.last_modified ?? null,
+        cursor: finished ? null : cursor,
+        walk_since: finished ? null : since,
+        walk_max: finished ? null : maxSeen,
+        last_run: new Date().toISOString(),
+        last_error: null,
+        rows_total: (st?.rows_total ?? 0) + count,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      await supabase.from("alba_sync").upsert({ entity, last_run: new Date().toISOString(), last_error: message,
+        last_modified: st?.last_modified ?? null, cursor: st?.cursor ?? null, walk_since: st?.walk_since ?? null,
+        walk_max: st?.walk_max ?? null, rows_total: st?.rows_total ?? 0 });
+      throw e;
+    }
+    report[entity] = count;
+    if (!finished) { done = false; break; }
+  }
+  return { done, fetched: report };
+}
+
 // ---------- Database ----------
 function db() {
   const url = Deno.env.get("SUPABASE_URL");
@@ -479,6 +584,15 @@ async function handle(req: Request): Promise<Response> {
     if (!emails.length) return json({ error: "Ingen spillere har e-post registrert." }, 400);
     const sent = await sendGmail({ subject, body, bcc: emails, to: from });
     return json({ ok: true, sent });
+  }
+
+  if (action === "alba-sync") {
+    if (!(await requireAdmin(req, supabase))) return json({ error: "Ikke innlogget som administrator" }, 401);
+    try {
+      return json({ ok: true, ...(await albaSync(supabase)) });
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : String(e) }, 502);
+    }
   }
 
   if (action === "trackman-scores") {
