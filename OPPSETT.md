@@ -149,6 +149,7 @@ Appen henter nye endringer automatisk når fanen åpnes (hvis det er over en tim
 - Velg visninger og rekkefølge: `#/skjerm?vis=leaderboard,runde,velkommen`
   (mulige: leaderboard, runde, neste, terminliste, velkommen, meldinger)
 - Data oppdateres hvert 2. minutt, og siden laster ny versjon av appen automatisk.
+- **Styr skjermen selv**: kjør `supabase/skjerm.sql` én gang. Deretter: adminsiden → **Skjerm**. Der slår du visninger av/på, endrer rekkefølge og tid, og lager egne visninger (tekst med QR-kode, eller bilde i fullskjerm, f.eks. fra Canva i 1920×1080) med valgfri start- og sluttdato.
 - Piltaster eller klikk blar manuelt.
 
 ## Statistikk

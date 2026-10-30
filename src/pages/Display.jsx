@@ -12,11 +12,76 @@ const APP_URL = 'https://app.alvoeninnegolf.no';
 const ALL = ['leaderboard', 'runde', 'neste', 'velkommen', 'terminliste', 'meldinger'];
 const W = 1920; const H = 1080;
 
+// Adressen overstyrer innstillingene fra admin (nyttig for test).
 function useParams() {
   const q = new URLSearchParams(window.location.hash.split('?')[1] || '');
-  const sek = Math.max(8, Math.min(120, Number(q.get('sek')) || 20));
-  const vis = (q.get('vis') || '').split(',').map((s) => s.trim()).filter((s) => ALL.includes(s));
-  return { sek, vis: vis.length ? vis : ALL };
+  const sek = Number(q.get('sek')) ? Math.max(5, Math.min(120, Number(q.get('sek')))) : null;
+  const vis = (q.get('vis') || '').split(',').map((s) => s.trim()).filter((s) => ALL.includes(s) || /^custom:\d+$/.test(s));
+  return { sek, vis: vis.length ? vis : null };
+}
+
+export const BUILTIN_SLIDES = [
+  { id: 'leaderboard', label: 'Leaderboard / OoM' },
+  { id: 'runde', label: 'Siste runde (resultat)' },
+  { id: 'neste', label: 'Neste / pågående runde' },
+  { id: 'velkommen', label: 'Velkommen med QR-koder' },
+  { id: 'terminliste', label: 'Terminliste' },
+  { id: 'meldinger', label: 'Siste nytt (meldinger)', hint: 'vises bare når det finnes meldinger fra de siste 3 ukene' },
+];
+
+const todayIso = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Oslo' });
+export const slideIsLive = (c) => c.active && (!c.show_from || c.show_from <= todayIso()) && (!c.show_to || c.show_to >= todayIso());
+
+// Egen visning laget i admin (tekst eller bilde).
+export function CustomSlide({ c }) {
+  if (c.kind === 'bilde') {
+    return (
+      <div className="d-slide d-slide-image">
+        {c.image_url ? <img src={c.image_url} alt={c.title || ''} /> : <div className="d-empty">Mangler bilde</div>}
+      </div>
+    );
+  }
+  return (
+    <div className={`d-slide d-custom theme-${c.theme}`}>
+      <div className="d-custom-grid">
+        <div className="d-custom-text">
+          {c.kicker && <div className="d-kicker">{c.kicker}</div>}
+          {c.title && <h1 className="d-title d-custom-title">{c.title}</h1>}
+          {c.body && <p className="d-lead d-custom-body">{c.body}</p>}
+        </div>
+        {(c.image_url || c.qr_url) && (
+          <div className="d-custom-side">
+            {c.image_url && <img className="d-custom-img" src={c.image_url} alt="" />}
+            {c.qr_url && (
+              <div className="d-custom-qr">
+                <Qr url={c.qr_url} size={c.image_url ? 170 : 250} />
+                {c.qr_label && <strong>{c.qr_label}</strong>}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Forhåndsvisning av én visning i riktig format (brukes på admin-siden).
+export function SlidePreview({ children }) {
+  const ref = useRef(null);
+  const [k, setK] = useState(0.3);
+  useEffect(() => {
+    const el = ref.current; if (!el) return undefined;
+    const ro = new ResizeObserver(() => setK(el.clientWidth / W));
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
+  return (
+    <div className="d-preview" ref={ref}>
+      <div className="d-stage d-stage-preview" style={{ transform: `scale(${k})` }}>
+        <header className="d-bar"><img src="/logo.png" alt="" className="d-logo" /><div className="d-clock"><strong>12:00</strong><span>forhåndsvisning</span></div></header>
+        <main className="d-main"><div className="d-frame on">{children}</div></main>
+      </div>
+    </div>
+  );
 }
 
 function useScale() {
@@ -248,7 +313,7 @@ function MessagesSlide({ messages }) {
 
 // ---------- Skjermen ----------
 export default function Display() {
-  const { sek, vis } = useParams();
+  const params = useParams();
   const scale = useScale();
   const now = useClock();
   const res = useResults();
@@ -256,6 +321,8 @@ export default function Display() {
   const [messages, setMessages] = useState([]);
   const [idx, setIdx] = useState(0);
   const [tick, setTick] = useState(0);
+  const [settings, setSettings] = useState(null);
+  const [custom, setCustom] = useState([]);
   const timer = useRef(null);
 
   // Hent nye data hvert 2. minutt.
@@ -264,6 +331,8 @@ export default function Display() {
       supabase.from('tournament').select('title').eq('id', 1).single().then(({ data }) => data && setTour(data));
       supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(3)
         .then(({ data }) => setMessages((data || []).filter((m) => Date.now() - new Date(m.created_at).getTime() < 21 * 86400000)));
+      supabase.from('display_settings').select('*').eq('id', 1).maybeSingle().then(({ data, error }) => !error && data && setSettings(data));
+      supabase.from('display_slides').select('*').then(({ data, error }) => !error && setCustom(data || []));
     };
     load();
     const t = setInterval(() => { load(); res.reload(); }, 120000);
@@ -283,7 +352,22 @@ export default function Display() {
   const cur = currentRound();
   const resultRound = data ? [...ROUNDS].reverse().find((r) => roundStatus(r) !== 'kommer' && data.results[r.n]?.validCount > 0) : null;
 
+  const sek = params.sek || settings?.seconds || 20;
+  const liveCustom = custom.filter(slideIsLive);
+  const vis = useMemo(() => {
+    if (params.vis) return params.vis;
+    const order = settings?.slide_order?.length ? [...settings.slide_order] : [...ALL];
+    for (const c of liveCustom) if (!order.includes(`custom:${c.id}`)) order.push(`custom:${c.id}`);
+    for (const b of ALL) if (!order.includes(b)) order.push(b);
+    const hidden = new Set(settings?.hidden || []);
+    return order.filter((k) => !hidden.has(k));
+  }, [params.vis, settings, liveCustom.map((c) => c.id).join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const slides = useMemo(() => vis.map((id) => {
+    if (id.startsWith('custom:')) {
+      const c = liveCustom.find((x) => `custom:${x.id}` === id);
+      return c ? { id, el: <CustomSlide c={c} />, sek: c.seconds } : null;
+    }
     if (id === 'leaderboard') return data ? { id, el: <Leaderboard res={data} title={title} /> } : null;
     if (id === 'runde') return resultRound ? { id, el: <RoundSlide round={resultRound} result={data.results[resultRound.n]} title={title} /> } : null;
     if (id === 'neste') return cur ? { id, el: <NextRound round={cur} title={title} /> } : null;
@@ -291,16 +375,17 @@ export default function Display() {
     if (id === 'velkommen') return { id, el: <Welcome /> };
     if (id === 'meldinger') return messages.length ? { id, el: <MessagesSlide messages={messages} /> } : null;
     return null;
-  }).filter(Boolean), [vis, data, title, resultRound, cur, messages]);
+  }).filter(Boolean), [vis, data, title, resultRound, cur, messages, custom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const count = slides.length;
   const active = count ? idx % count : 0;
 
   useEffect(() => {
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setIdx((i) => i + 1), sek * 1000);
+    const own = slides.length ? slides[idx % slides.length]?.sek : null;
+    timer.current = setTimeout(() => setIdx((i) => i + 1), (own || sek) * 1000);
     return () => clearTimeout(timer.current);
-  }, [idx, sek, tick]);
+  }, [idx, sek, tick, slides.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Piltaster / klikk for å bla manuelt (nyttig ved oppsett).
   useEffect(() => {
@@ -331,7 +416,7 @@ export default function Display() {
         <footer className="d-progress">
           {slides.map((s, i) => (
             <span key={s.id} className={i === active ? 'on' : ''}>
-              {i === active && <i key={`${idx}-${tick}`} style={{ animationDuration: `${sek}s` }} />}
+              {i === active && <i key={`${idx}-${tick}`} style={{ animationDuration: `${s.sek || sek}s` }} />}
             </span>
           ))}
         </footer>

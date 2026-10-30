@@ -446,3 +446,27 @@ body.display-mode { cursor: none; overflow: hidden; background: #1C3442; }
 .d-progress span { flex: 1; height: 8px; border-radius: 4px; background: #E3E4DC; overflow: hidden; }
 .d-progress i { display: block; height: 100%; background: var(--navy); width: 0; animation: d-fill linear forwards; }
 @keyframes d-fill { to { width: 100%; } }
+
+/* Egne visninger */
+.d-custom-grid { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 80px; align-items: center; }
+.d-custom-text { display: flex; flex-direction: column; gap: 26px; min-width: 0; }
+.d-custom-title { font-size: 104px; text-wrap: balance; }
+.d-custom-body { font-size: 40px; white-space: pre-line; max-width: 1200px; }
+.d-custom-side { display: flex; flex-direction: column; align-items: center; gap: 30px; }
+.d-custom-img { max-width: 620px; max-height: 560px; border-radius: 32px; object-fit: cover; display: block; }
+.d-custom-qr { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.d-custom-qr strong { font-size: 30px; font-weight: 700; color: var(--navy); text-align: center; max-width: 360px; }
+.d-custom.theme-mork, .d-custom.theme-gronn { margin: 0 40px; height: calc(100% - 30px); border-radius: 40px; padding: 60px 80px; }
+.d-custom.theme-mork { background: var(--navy); }
+.d-custom.theme-gronn { background: #A4BFA8; }
+.d-custom.theme-mork .d-title, .d-custom.theme-mork .d-lead, .d-custom.theme-mork .d-custom-qr strong { color: #fff; }
+.d-custom.theme-mork .d-kicker { color: #A4BFA8; }
+.d-custom.theme-gronn .d-title, .d-custom.theme-gronn .d-custom-qr strong { color: #19261C; }
+.d-custom.theme-gronn .d-lead { color: #19261C; }
+.d-custom.theme-gronn .d-kicker { color: #284659; }
+.d-slide-image { padding: 0 40px 10px; align-items: center; justify-content: center; }
+.d-slide-image img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 24px; display: block; }
+.d-preview { position: relative; width: 100%; aspect-ratio: 16 / 9; overflow: hidden; border-radius: 12px; background: #1C3442; }
+.d-stage.d-stage-preview { position: absolute; left: 0; top: 0; transform-origin: top left; }
+.dimmed { opacity: .55; }
+.list-item.dimmed:hover { opacity: .8; }

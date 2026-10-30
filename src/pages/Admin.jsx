@@ -7,6 +7,7 @@ import ResultsAdmin, { countHcpSubmissions } from './ResultsAdmin.jsx';
 import Inbox, { countUnhandled } from './Inbox.jsx';
 import PlayerEmail from './PlayerEmail.jsx';
 import CustomersAdmin from './CustomersAdmin.jsx';
+import DisplayAdmin from './DisplayAdmin.jsx';
 import { supabase, callPush } from '../supabase.js';
 import { CATEGORIES, categoryLabel, SHOW_INFO_PAGES } from '../config.js';
 import { useQuery, fetchMessages, fetchTournament, fetchStandings, fetchInfoPages, formatWhen } from '../data.js';
@@ -284,6 +285,7 @@ const TABS = [
   { id: 'resultater', label: 'Vinterserien' },
   { id: 'turnering', label: 'Turnering' },
   ...(SHOW_INFO_PAGES ? [{ id: 'info', label: 'Infosider' }] : []),
+  { id: 'skjerm', label: 'Skjerm' },
   { id: 'kiosk', label: 'Kiosk' },
   { id: 'statistikk', label: 'Statistikk' },
 ];
@@ -360,6 +362,7 @@ export default function Admin({ initialTab }) {
       {tab === 'turnering' && <TournamentAdmin />}
       {tab === 'pameldte' && <Signups />}
       {tab === 'info' && <InfoAdmin />}
+      {tab === 'skjerm' && <DisplayAdmin />}
       {tab === 'kiosk' && <KioskAdmin />}
       {tab === 'statistikk' && <StatsAdmin />}
 
