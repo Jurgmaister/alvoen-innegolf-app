@@ -194,7 +194,7 @@ input:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visib
 .preview img { border-radius: 10px; }
 
 .back-link { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; text-decoration: none; min-height: 44px; }
-.admin-tabs { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.admin-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
 .admin-tabs .chip { flex-shrink: 0; }
 
 /* Fanemeny */
