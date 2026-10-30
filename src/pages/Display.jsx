@@ -22,7 +22,7 @@ function useParams() {
 
 export const BUILTIN_SLIDES = [
   { id: 'leaderboard', label: 'Leaderboard / OoM' },
-  { id: 'runde', label: 'Siste runde (resultat)' },
+  { id: 'runde', label: 'Siste runde (resultat)', hint: 'alle som har spilt; mange spillere fordeles på flere sider' },
   { id: 'neste', label: 'Neste / pågående runde' },
   { id: 'velkommen', label: 'Velkommen med QR-koder' },
   { id: 'terminliste', label: 'Terminliste' },
@@ -158,35 +158,81 @@ function Leaderboard({ res, title }) {
   );
 }
 
-function RoundSlide({ round, result, title }) {
-  const rows = result.rows.filter((x) => x.valid).slice(0, 10);
+// Alle som har spilt runden: topp 5 stort, resten i kompakte kolonner. Mange spillere gir flere sider.
+const ROUND_TOP = 5;
+const ROUND_FIRST_REST = 24; // 3 kolonner × 8 under topp 5
+const ROUND_PAGE = 39; // 3 kolonner × 13 på fortsettelsessider
+export function roundPages(result) {
+  const n = result.rows.filter((x) => x.valid).length;
+  const rest = Math.max(0, n - ROUND_TOP - ROUND_FIRST_REST);
+  return 1 + Math.ceil(rest / ROUND_PAGE);
+}
+
+function CompactRows({ rows }) {
+  const cols = [[], [], []];
+  const per = Math.ceil(rows.length / 3) || 1;
+  rows.forEach((x, i) => cols[Math.floor(i / per)].push(x));
+  return (
+    <div className="d-compact">
+      {cols.map((col, ci) => (
+        <table key={ci} className="d-table d-table-compact">
+          {ci === 0 || col.length ? (
+            <thead><tr><th className="pl">Pl.</th><th className="name">Spiller</th><th>Score</th><th>Netto</th><th>P</th></tr></thead>
+          ) : null}
+          <tbody>
+            {col.map((x) => (
+              <tr key={x.player_id}>
+                <td className="pl">{x.ties > 1 ? `T${x.place}` : x.place}</td>
+                <td className="name">{x.name}</td>
+                <td className={x.toPar < 0 ? 'topar under' : 'topar'}>{fmtToPar(x.toPar)}</td>
+                <td>{x.net}</td>
+                <td className="pts">{x.points}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+    </div>
+  );
+}
+
+function RoundSlide({ round, result, title, page = 0 }) {
+  const all = result.rows.filter((x) => x.valid);
+  const pages = roundPages(result);
   const prov = roundStatus(round) !== 'ferdig';
+  const top = page === 0 ? all.slice(0, ROUND_TOP) : [];
+  const rest = page === 0
+    ? all.slice(ROUND_TOP, ROUND_TOP + ROUND_FIRST_REST)
+    : all.slice(ROUND_TOP + ROUND_FIRST_REST + (page - 1) * ROUND_PAGE, ROUND_TOP + ROUND_FIRST_REST + page * ROUND_PAGE);
   return (
     <div className="d-slide">
       <div className="d-head">
         <div>
-          <div className="d-kicker">{title} · Runde {round.n}</div>
+          <div className="d-kicker">{title} · Runde {round.n}{pages > 1 ? ` · side ${page + 1} av ${pages}` : ''}</div>
           <h1 className="d-title">{round.course}</h1>
         </div>
         <div className={prov ? 'd-pill d-pill-warn' : 'd-pill'}>{prov ? `Foreløpig resultat · spilles til ${formatRange(round).split(' – ')[1]}` : 'Resultat'}</div>
       </div>
-      <table className="d-table d-table-wide">
-        <thead><tr><th className="pl">Pl.</th><th className="name">Spiller</th><th>Score</th><th>Brutto</th><th>HCP</th><th>Netto</th><th>Poeng</th></tr></thead>
-        <tbody>
-          {rows.map((x) => (
-            <tr key={x.player_id}>
-              <td className="pl"><span className={x.place <= 3 ? `d-pos p${x.place}` : 'd-pos'}>{x.ties > 1 ? `T${x.place}` : x.place}</span></td>
-              <td className="name">{x.name}</td>
-              <td className={x.toPar < 0 ? 'topar under' : 'topar'}>{fmtToPar(x.toPar)}</td>
-              <td>{x.gross}</td>
-              <td>{fmtSigned(x.ph)}</td>
-              <td className="pts">{x.net}</td>
-              <td className="pts">{x.points}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="d-foot-note">{result.validCount} spillere{result.validCount > 10 ? ' · topp 10 vises' : ''} · Score = netto mot par · hele listen finner du i appen</div>
+      {top.length > 0 && (
+        <table className="d-table d-table-wide d-table-top">
+          <thead><tr><th className="pl">Pl.</th><th className="name">Spiller</th><th>Score</th><th>Brutto</th><th>HCP</th><th>Netto</th><th>Poeng</th></tr></thead>
+          <tbody>
+            {top.map((x) => (
+              <tr key={x.player_id}>
+                <td className="pl"><span className={x.place <= 3 ? `d-pos p${x.place}` : 'd-pos'}>{x.ties > 1 ? `T${x.place}` : x.place}</span></td>
+                <td className="name">{x.name}</td>
+                <td className={x.toPar < 0 ? 'topar under' : 'topar'}>{fmtToPar(x.toPar)}</td>
+                <td>{x.gross}</td>
+                <td>{fmtSigned(x.ph)}</td>
+                <td className="pts">{x.net}</td>
+                <td className="pts">{x.points}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {rest.length > 0 && <CompactRows rows={rest} />}
+      <div className="d-foot-note">{result.validCount} spillere · Score = netto mot par · P = poeng</div>
     </div>
   );
 }
@@ -369,13 +415,17 @@ export default function Display() {
       return c ? { id, el: <CustomSlide c={c} />, sek: c.seconds } : null;
     }
     if (id === 'leaderboard') return data ? { id, el: <Leaderboard res={data} title={title} /> } : null;
-    if (id === 'runde') return resultRound ? { id, el: <RoundSlide round={resultRound} result={data.results[resultRound.n]} title={title} /> } : null;
+    if (id === 'runde') {
+      if (!resultRound) return null;
+      const result = data.results[resultRound.n];
+      return Array.from({ length: roundPages(result) }, (_, page) => ({ id: page ? `runde-${page}` : 'runde', el: <RoundSlide round={resultRound} result={result} title={title} page={page} /> }));
+    }
     if (id === 'neste') return cur ? { id, el: <NextRound round={cur} title={title} /> } : null;
     if (id === 'terminliste') return { id, el: <Schedule title={title} /> };
     if (id === 'velkommen') return { id, el: <Welcome /> };
     if (id === 'meldinger') return messages.length ? { id, el: <MessagesSlide messages={messages} /> } : null;
     return null;
-  }).filter(Boolean), [vis, data, title, resultRound, cur, messages, custom]); // eslint-disable-line react-hooks/exhaustive-deps
+  }).flat().filter(Boolean), [vis, data, title, resultRound, cur, messages, custom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const count = slides.length;
   const active = count ? idx % count : 0;

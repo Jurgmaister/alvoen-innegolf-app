@@ -470,3 +470,13 @@ body.display-mode { cursor: none; overflow: hidden; background: #1C3442; }
 .d-stage.d-stage-preview { position: absolute; left: 0; top: 0; transform-origin: top left; }
 .dimmed { opacity: .55; }
 .list-item.dimmed:hover { opacity: .8; }
+
+/* Siste runde: alle spillere */
+.d-table-top { font-size: 32px; }
+.d-table-top td { padding: 4px 14px; }
+.d-table-top .d-pos { height: 42px; min-width: 42px; font-size: 22px; }
+.d-compact { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 44px; align-items: start; margin-top: -6px; }
+.d-table-compact { font-size: 22px; }
+.d-table-compact th { font-size: 15px; padding: 0 8px 6px; }
+.d-table-compact td { padding: 3px 8px; border-top-width: 1px; }
+.d-table-compact td.pl { width: 44px; color: var(--muted); font-weight: 600; }
