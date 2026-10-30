@@ -4,6 +4,7 @@ import App from './App.jsx';
 import '@fontsource/poppins/latin-400.css';
 import '@fontsource/poppins/latin-500.css';
 import '@fontsource/poppins/latin-600.css';
+import '@fontsource/poppins/latin-700.css';
 import './styles.css';
 import { startUpdateChecks } from './update.js';
 import { startTracking } from './track.js';

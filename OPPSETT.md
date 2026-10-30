@@ -141,6 +141,16 @@ Adminsiden → **Kunder** viser kundeliste, nye og faste kunder, når simulatore
 
 Appen henter nye endringer automatisk når fanen åpnes (hvis det er over en time siden), eller med **Oppdater fra Alba**. Første henting kan ta et par minutter.
 
+## Skjerm i lokalet
+
+Åpne `https://app.alvoeninnegolf.no/#/skjerm` i fullskjerm på TV-en (f.eks. Fully Kiosk Browser). Visningene bytter automatisk: Leaderboard / OoM, siste runderesultat, neste runde, velkommen med QR-koder, terminliste og meldinger fra de siste 3 ukene.
+
+- Tid per visning: `#/skjerm?sek=30`
+- Velg visninger og rekkefølge: `#/skjerm?vis=leaderboard,runde,velkommen`
+  (mulige: leaderboard, runde, neste, terminliste, velkommen, meldinger)
+- Data oppdateres hvert 2. minutt, og siden laster ny versjon av appen automatisk.
+- Piltaster eller klikk blar manuelt.
+
 ## Statistikk
 
 1. I Supabase: **SQL Editor → New query**, lim inn hele `supabase/statistikk.sql` og trykk **Run**.

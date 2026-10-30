@@ -6,6 +6,7 @@ import Tournament from './pages/Tournament.jsx';
 import InfoPage from './pages/InfoPage.jsx';
 import Admin from './pages/Admin.jsx';
 import Contact from './pages/Contact.jsx';
+import Display from './pages/Display.jsx';
 import TabBar from './components/TabBar.jsx';
 
 function parseRoute() {
@@ -38,6 +39,7 @@ export default function App() {
   }
 
   const [section, param] = route;
+  if (section === 'skjerm') return <Display />;
   const isAdmin = section === 'admin';
 
   let page;
