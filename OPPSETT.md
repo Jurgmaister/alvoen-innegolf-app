@@ -199,3 +199,4 @@ Vinterserien og konkurrentpriser hentes fra push-funksjonen:
 - Albaplay sjekkes høyst hver 6. time.
 - Oppsett: kjør `supabase/rapport.sql` i SQL Editor, og deploy push-funksjonen på nytt med «Verify JWT» av, som før.
 - Første kjøring lagrer bare utgangspunktet. Endringer vises fra uken etter.
+- Rapporten lages også som et bilde i appens design (`rapport/svg.mjs`, eksempeldata i `rapport/eksempel.json`). Bildet lagres i SharePoint under Alvøen Innegolf/Ukerapporter, og Teams-meldingen lenker til det. `rapport/render.mjs` lager PNG og PDF, men de brukes ikke fast fordi filene er for store til å lastes opp hver uke.

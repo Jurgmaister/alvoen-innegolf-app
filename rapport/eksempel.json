@@ -1,0 +1,16 @@
+{
+  "file": "ukerapport-2026-uke43",
+  "title": "Uke 43 · 19.–25. oktober",
+  "subtitle": "Sammenlignet med uken før og samme uke i fjor",
+  "sections": [
+    { "title": "Bookinger og omsetning", "columns": ["", "Uke 43", "Uke 42", "Uke 43 i fjor"],
+      "rows": [["Bookinger","34","43","31"],["Timer","63","70","54"],["Belegg","8,2 %","10,4 %","7,0 %"],["Omsetning","11 810 kr","18 530 kr*","14 355 kr"]],
+      "note": "* inkl. gavekort 1 500 kr" },
+    { "title": "Kunder", "columns": ["", "Uke 43", "Uke 42", "Uke 43 i fjor"],
+      "rows": [["Totalt","30","32","23"],["Nye","9","3","1"],["Faste","21","29","22"],["Travleste dag","Torsdag","–","–"]] },
+    { "title": "Vinterserien", "columns": ["Runde", "Fullført", "Startet, ikke ferdig"],
+      "rows": [["Runde 1","5","1"]], "note": "HCP-innmeldinger denne uken: –" }
+  ],
+  "notes": ["Tre ganger så mange nye kunder som uken før.", "Omsetning −18 % mot i fjor, fordi hverdagsprisen er 50 kr lavere."],
+  "missing": "Test: Vinterserien per 27.10 (push-funksjonen er ikke deployet ennå)."
+}
