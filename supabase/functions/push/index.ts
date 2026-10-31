@@ -11,6 +11,8 @@
 //   email-players – sender e-post fra Gmail-kontoen til alle spillere med e-post (kun admin)
 //   email-status – om e-post er satt opp (kun admin)
 //   alba-sync – henter nye/endrede bookinger, kunder og betalinger fra Alba Partner API (kun admin)
+//   GET ?action=weekly&from=YYYY-MM-DD&to=YYYY-MM-DD – åpen ukesoppsummering uten persondata:
+//       vinterserien (antall spillere) og endringer i konkurrentpriser (Albaplay). Brukes av ukerapporten.
 //   trackman-scores – henter brutto slag og tee per spiller for en runde fra Trackman-leaderboardet (kun admin)
 //
 // Hemmeligheter (Edge Functions → Secrets):
@@ -31,7 +33,7 @@ const CONTACT_TOPICS: Record<string, string> = {
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
 function json(data: unknown, status = 200) {
@@ -429,6 +431,189 @@ async function albaSync(supabase: ReturnType<typeof db>) {
   return { done, fetched: report };
 }
 
+
+// ---------- Ukerapport (åpen, uten persondata) ----------
+const COMPETITORS: [string, string][] = [
+  ["alvoen-innegolf", "Alvøen Innegolf (oss)"],
+  ["bergengolfsimulator", "Bergen Golfsimulator (Olsvik)"],
+  ["inne-golf-bergen-avd-laksevag-senter", "Inne Golf Laksevåg"],
+  ["ingolf-bergen", "Inne Golf Åsane"],
+  ["inne-golf-bergen-avd-sandviken", "Inne Golf Sandviken"],
+  ["sentrum-golf-bergen", "Sentrum Golf"],
+  ["bergen-golfsenter", "Onlinegolf / Bergen Golfsenter"],
+  ["golfrommet-kokstad", "Golfrommet Kokstad"],
+  ["asane-golflounge", "Åsane Golflounge"],
+  ["askoy-golfsimulator", "Askøy Golfsimulator"],
+  ["meland-golfklubb", "Meland GK"],
+  ["sotra-golfklubb", "Sotra GK"],
+];
+const DAYS_NO = ["", "Man", "Tir", "Ons", "Tor", "Fre", "Lør", "Søn"];
+
+// Henter prislisten fra Albaplay. Retter variabeltypene automatisk hvis API-et sier at de er feil.
+const albaTypes: Record<string, string> = { slug: "String!", date: "String!", resourceType: "String" };
+async function albaPriceList(slug: string, date: string) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const decl = Object.entries(albaTypes).map(([k, t]) => `$${k}: ${t}`).join(", ");
+    const query = `query AlvoenPrices(${decl}) { locationBySlugForCalendar(slug: $slug, date: $date, resourceType: $resourceType) { id priceList { slotPricesPerWeekday } } }`;
+    const res = await fetch("https://albaplay.com/api/graphql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", Origin: "https://albaplay.com", Referer: `https://albaplay.com/no/venue/${slug}` },
+      body: JSON.stringify({ operationName: "AlvoenPrices", query, variables: { slug, date, resourceType: "SIM" } }),
+    });
+    const data = await res.json().catch(() => ({}));
+    const err = data?.errors?.[0]?.message as string | undefined;
+    if (err) {
+      const m = err.match(/Variable "\$(\w+)" of type "[^"]+" used in position expecting type "([^"]+)"/);
+      if (m && albaTypes[m[1]] !== undefined) { albaTypes[m[1]] = m[2]; continue; }
+      throw new Error(err.slice(0, 160));
+    }
+    return data?.data?.locationBySlugForCalendar?.priceList?.slotPricesPerWeekday ?? null;
+  }
+  throw new Error("Klarte ikke å lese prislisten fra Albaplay");
+}
+
+// «Man–Tor: 00–17 200 · 17–24 250 | Fre: …» – like dager slås sammen.
+function summarizePrices(pl: Record<string, Record<string, number>> | null): string {
+  if (!pl) return "ingen prisliste";
+  const perDay: string[] = [];
+  for (let d = 1; d <= 7; d++) {
+    const slots = pl[String(d)] || {};
+    const hours = Object.keys(slots).filter((t) => t !== "24:00").sort();
+    const segs: { from: string; to: string; p: number }[] = [];
+    for (const t of hours) {
+      const p = slots[t];
+      const last = segs[segs.length - 1];
+      const end = String(Number(t.slice(0, 2)) + 1).padStart(2, "0");
+      if (last && last.p === p) last.to = end; else segs.push({ from: t.slice(0, 2), to: end, p });
+    }
+    perDay.push(segs.map((s) => `${s.from}–${s.to} ${s.p}`).join(" · "));
+  }
+  const groups: string[] = [];
+  let i = 0;
+  while (i < 7) {
+    let j = i;
+    while (j + 1 < 7 && perDay[j + 1] === perDay[i]) j++;
+    groups.push(`${DAYS_NO[i + 1]}${j > i ? "–" + DAYS_NO[j + 1] : ""}: ${perDay[i] || "stengt"}`);
+    i = j + 1;
+  }
+  return groups.join(" | ");
+}
+
+// Splitter «Man–Fre: … | Lør: …» til én linje per dag og returnerer bare dagene som er endret.
+function perDay(summary: string | null): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const part of (summary ?? "").split(" | ")) {
+    const m = part.match(/^(\S+?): (.*)$/); if (!m) continue;
+    const [a, b] = m[1].split("–"); const i = DAYS_NO.indexOf(a), j = b ? DAYS_NO.indexOf(b) : i;
+    for (let d = i; d <= j && d > 0; d++) out[DAYS_NO[d]] = m[2];
+  }
+  return out;
+}
+function diffDays(before: string | null, after: string | null) {
+  const a = perDay(before), b = perDay(after);
+  return DAYS_NO.slice(1).filter((d) => a[d] !== b[d]).map((d) => ({ day: d, before: a[d] ?? "–", after: b[d] ?? "–" }));
+}
+
+async function checkCompetitors(supabase: ReturnType<typeof db>, since: string) {
+  const { data: rows } = await supabase.from("competitor_prices").select("*");
+  const stored = new Map((rows ?? []).map((r: any) => [r.slug, r]));
+  // Albaplay sjekkes høyst hver 6. time; ellers brukes forrige måling.
+  const fresh = (rows ?? []).length === COMPETITORS.length && (rows ?? []).every((r: any) => r.checked_at && Date.now() - new Date(r.checked_at).getTime() < 6 * 3600_000);
+  const date = new Date(Date.now() + 3 * 86400_000).toISOString().slice(0, 10);
+  const errors: string[] = [];
+  if (!fresh) {
+    for (const [slug, name] of COMPETITORS) {
+      const prev: any = stored.get(slug);
+      try {
+        const pl = await albaPriceList(slug, date);
+        const summary = summarizePrices(pl);
+        const changed = prev?.summary && prev.summary !== summary;
+        const row = {
+          slug, name, price_list: pl, summary, checked_at: new Date().toISOString(), last_error: null,
+          previous_summary: changed ? prev.summary : prev?.previous_summary ?? null,
+          changed_at: changed ? new Date().toISOString() : prev?.changed_at ?? null,
+        };
+        await supabase.from("competitor_prices").upsert(row);
+        stored.set(slug, row);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        errors.push(`${name}: ${msg}`);
+        await supabase.from("competitor_prices").upsert({ slug, name, last_error: msg, checked_at: prev?.checked_at ?? null, summary: prev?.summary ?? null, price_list: prev?.price_list ?? null, previous_summary: prev?.previous_summary ?? null, changed_at: prev?.changed_at ?? null });
+      }
+    }
+  }
+  const changes = [...stored.values()]
+    .filter((r: any) => r.changed_at && r.changed_at >= since && r.previous_summary)
+    .map((r: any) => ({ name: r.name, detected: r.changed_at, days: diffDays(r.previous_summary, r.summary) }));
+  const first = [...stored.values()].every((r: any) => !r.previous_summary && !r.changed_at) && (rows ?? []).length === 0;
+  return { checked: COMPETITORS.length, changes, errors, firstMeasurement: first };
+}
+
+async function seriesStats(supabase: ReturnType<typeof db>, from: string, to: string) {
+  const out: Record<string, unknown> = {};
+  // Antall registrert i appen og innmeldte HCP i perioden (bare tall).
+  const { count: players } = await supabase.from("players").select("id", { count: "exact", head: true });
+  out.registeredPlayers = players ?? null;
+  const { count: hcp } = await supabase.from("hcp_submissions").select("id", { count: "exact", head: true })
+    .gte("created_at", `${from}T00:00:00+01:00`).lte("created_at", `${to}T23:59:59+01:00`);
+  out.hcpSubmissionsInPeriod = hcp ?? null;
+  // Trackman: alle runder som noen har startet. Datofelt brukes hvis API-et har dem, ellers telles bare totalt.
+  const t = secret("TRACKMAN_TOURNAMENT_ID") || TRACKMAN_TOURNAMENT;
+  const info = await trackmanGql(
+    `query($t: ID!) { node(id: $t) { ... on CourseTournament { rounds { id roundNumber numberOfHoles } } } }`, { t });
+  const fromMs = new Date(`${from}T00:00:00+01:00`).getTime(); const toMs = new Date(`${to}T23:59:59+01:00`).getTime();
+  let cardFields = "isCompleted finishedAt";
+  const card = async (id: string) => {
+    try { return (await trackmanGql(`query($id: ID!) { node(id: $id) { ... on Scorecard { ${cardFields} } } }`, { id }))?.node; }
+    catch (e) {
+      if (cardFields !== "isCompleted") { cardFields = "isCompleted"; return card(id); }
+      throw e;
+    }
+  };
+  const rounds: unknown[] = [];
+  for (const r of info?.node?.rounds ?? []) {
+    const lb = await trackmanGql(
+      `query($t: ID!, $r: ID!) { node(id: $t) { ... on CourseTournament { roundLeaderboard(roundId: $r, scoringFormat: STROKE) { records(skip: 0, take: 500) { items { score { state scorecardId } } } } } } }`,
+      { t, r: r.id });
+    const items = (lb?.node?.roundLeaderboard?.records?.items ?? []).filter((i: any) => i.score && i.score.state !== "NOT_PLAYED" && i.score.scorecardId);
+    if (!items.length) continue;
+    let completedTotal = 0, completedInPeriod = 0, started = 0, dated = false;
+    for (const i of items) {
+      try {
+        const c: any = await card(i.score.scorecardId);
+        if (c?.isCompleted) {
+          completedTotal++;
+          if (c.finishedAt) { dated = true; const w = new Date(c.finishedAt).getTime(); if (w >= fromMs && w <= toMs) completedInPeriod++; }
+        } else started++;
+      } catch { /* hopp over ett kort */ }
+    }
+    rounds.push({ round: r.roundNumber, completedTotal, completedInPeriod: dated ? completedInPeriod : null, startedNotFinished: started });
+  }
+  out.rounds = rounds;
+  return out;
+}
+
+function previousWeek(): { from: string; to: string } {
+  const now = new Date(new Date().toLocaleString("en-US", { timeZone: "Europe/Oslo" }));
+  const dow = (now.getDay() + 6) % 7; // man = 0
+  const monday = new Date(now); monday.setDate(now.getDate() - dow - 7);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  const f = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { from: f(monday), to: f(sunday) };
+}
+
+async function weekly(url: URL) {
+  const supabase = db();
+  const def = previousWeek();
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  const from = re.test(url.searchParams.get("from") ?? "") ? url.searchParams.get("from")! : def.from;
+  const to = re.test(url.searchParams.get("to") ?? "") ? url.searchParams.get("to")! : def.to;
+  const result: Record<string, unknown> = { period: { from, to } };
+  try { result.vinterserien = await seriesStats(supabase, from, to); } catch (e) { result.vinterserien = { error: e instanceof Error ? e.message : String(e) }; }
+  try { result.competitors = await checkCompetitors(supabase, `${from}T00:00:00+01:00`); } catch (e) { result.competitors = { error: e instanceof Error ? e.message : String(e) }; }
+  return result;
+}
+
 // ---------- Database ----------
 function db() {
   const url = Deno.env.get("SUPABASE_URL");
@@ -663,6 +848,13 @@ async function handle(req: Request): Promise<Response> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method === "GET") {
+    const url = new URL(req.url);
+    if (url.searchParams.get("action") === "weekly") {
+      try { return json({ ok: true, ...(await weekly(url)) }); } catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 500); }
+    }
+    return json({ error: "Kun POST" }, 405);
+  }
   if (req.method !== "POST") return json({ error: "Kun POST" }, 405);
   try {
     return await handle(req);

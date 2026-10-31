@@ -186,3 +186,16 @@ npm run build          # ferdig app i dist/
 ```
 
 Struktur: `src/pages` (sider), `src/push.js` (push i nettleseren), `public/sw.js` (service worker), `supabase/schema.sql` (database og tilgangsregler), `supabase/functions/push` (sending av push).
+
+## Ukerapport til Teams (hver mandag 07:00)
+
+Rapporten lages av en planlagt oppgave i Claude. Den henter bookinger, omsetning og kunder fra Alba og sender rapporten i Teams-chatten mellom Jørgen og Erik.
+Vinterserien og konkurrentpriser hentes fra push-funksjonen:
+
+`GET https://nfboljjirieyerrmdvce.supabase.co/functions/v1/push?action=weekly&from=ÅÅÅÅ-MM-DD&to=ÅÅÅÅ-MM-DD`
+
+- Svaret har ingen persondata, bare antall spillere per runde (Trackman), antall registrerte spillere og antall HCP-innmeldinger.
+- Prislistene til sentrene innen 30 km leses fra Albaplay og lagres i tabellen `competitor_prices`. Bare endringer siden periodens start returneres, og bare dagene som er endret.
+- Albaplay sjekkes høyst hver 6. time.
+- Oppsett: kjør `supabase/rapport.sql` i SQL Editor, og deploy push-funksjonen på nytt med «Verify JWT» av, som før.
+- Første kjøring lagrer bare utgangspunktet. Endringer vises fra uken etter.
